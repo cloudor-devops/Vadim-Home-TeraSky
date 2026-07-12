@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: node-info-staging
 resources:
   - namespace.yaml
+  - node-info-secrets.enc.yaml
   - ../base/node-info
 patches:
   - patch: |
@@ -20,6 +21,8 @@ patches:
           image:
             repository: ghcr.io/cloudor-devops/node-info
             # Promoted by PR: copy the tag currently running in dev.
-            tag: sha-0000000
+            tag: sha-03dd123
             pullSecrets:
               - name: ghcr-pull
+          secret:
+            existingSecret: node-info-secrets
