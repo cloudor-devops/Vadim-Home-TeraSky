@@ -8,3 +8,8 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
+
+# Terraform (lock file is committed; local state/plugins are not)
+.terraform/
+*.tfstate*
+*.tfplan

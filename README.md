@@ -75,6 +75,7 @@ apps/{dev,staging,production}/  env overlay: namespace, SOPS secret,
 clusters/{dev,staging,production}/  per-cluster Flux entry points
 infrastructure/controllers/ Kyverno (Flux HelmRelease)
 infrastructure/policies/    5 enforcing ClusterPolicies
+infra/terraform/            AWS reference IaC: VPC, EKS, ECR, KMS, IRSA
 k8s/rbac-proof/             standalone RBAC demo manifests (pre-Helm)
 hack/kind-config.yaml       3-node local cluster config
 docs/                       monitoring, security/secrets, AWS production design
@@ -111,6 +112,9 @@ curl localhost:8080/nodes
   and commits the new tag for dev. Flux is the only deployer.
 - **Image tags are immutable**: `sha-<short-commit>`. No `latest`, ever
   (Kyverno enforces this in-cluster too).
+- **Update strategy**: RollingUpdate with `maxSurge: 1, maxUnavailable: 0` —
+  a new pod must pass readiness before an old one is removed (verified: an
+  unpullable image left the old pod serving untouched).
 - **dev**: auto-deployed — CI commits the tag bump to `apps/dev/`.
 - **staging → production**: promotion is a PR copying the proven tag into
   `apps/staging/` / `apps/production/`. Git history is the audit trail.
