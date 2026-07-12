@@ -1,0 +1,6 @@
+apiVersion: v2
+name: node-info
+description: Backend service exposing /health and /nodes with least-privilege RBAC
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,47 @@
+{{- if .Values.networkPolicy.enabled }}
+# Default-deny for this app's pods; only listed namespaces may reach port 8000.
+# Egress: DNS + Kubernetes API only (the app calls list nodes).
+# NOTE: kind's default CNI (kindnet) does not enforce NetworkPolicy — enforced
+# on any CNI with policy support (Calico, Cilium, cloud CNIs).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "node-info.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "node-info.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "node-info.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        {{- range .Values.networkPolicy.ingressNamespaces }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Kubernetes API server
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+{{- end }}

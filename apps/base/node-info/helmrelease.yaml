@@ -1,0 +1,26 @@
+# Base HelmRelease: chart comes from this same Git repository (monorepo).
+# Each environment overlay appends its values-<env>.yaml via valuesFiles.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: node-info
+spec:
+  interval: 5m
+  timeout: 3m
+  chart:
+    spec:
+      chart: ./charts/node-info
+      reconcileStrategy: Revision
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      valuesFiles:
+        - charts/node-info/values.yaml
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3

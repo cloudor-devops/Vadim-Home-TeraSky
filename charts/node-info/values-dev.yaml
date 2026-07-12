@@ -1,0 +1,18 @@
+# dev: minimal footprint, fast iteration, no ingress (port-forward), no PDB
+# (a PDB with minAvailable=1 on a single replica would block node drains).
+replicaCount: 1
+
+config:
+  logLevel: DEBUG
+
+hpa:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 80
+
+pdb:
+  enabled: false
+
+ingress:
+  enabled: false

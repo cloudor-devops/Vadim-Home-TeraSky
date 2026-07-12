@@ -1,0 +1,87 @@
+# Default values — sane baseline; each environment overrides in values-<env>.yaml
+# (rendered by Flux HelmRelease per cluster in Phase 3).
+
+image:
+  repository: node-info
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# Used only when hpa.enabled=false; otherwise the HPA owns the replica count.
+replicaCount: 2
+
+config:
+  logLevel: INFO
+
+# Secret integration: the chart never templates secret material. It references
+# an externally created Secret (SOPS/External Secrets Operator in later phases).
+secret:
+  existingSecret: ""
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: nginx
+  host: node-info.local
+  annotations: {}
+  tls: []
+
+serviceAccount:
+  create: true
+  name: ""
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 3
+  periodSeconds: 5
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true
+  # Namespaces allowed to reach the app (by kubernetes.io/metadata.name label).
+  ingressNamespaces:
+    - ingress-nginx
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

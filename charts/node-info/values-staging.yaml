@@ -1,0 +1,18 @@
+# staging: production-shaped (same objects enabled) at smaller scale.
+config:
+  logLevel: INFO
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+ingress:
+  enabled: true
+  className: nginx
+  host: node-info.staging.example.com
