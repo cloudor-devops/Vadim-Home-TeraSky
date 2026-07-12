@@ -135,9 +135,12 @@ curl localhost:8080/nodes
 | Deploy gate | auto (CI) | PR | PR |
 | Anti-affinity | – | – | spread across nodes |
 
-Each environment in this demo is a namespace reconciled by its own Flux path;
-in production each is a separate cluster bootstrapped to `clusters/<env>`
-(see `docs/production-aws.md`).
+Each environment in this demo is a namespace on one kind cluster, reconciled
+by its own Flux Kustomization (`clusters/dev/apps*.yaml`) with its own SOPS
+key. In production each is a separate cluster bootstrapped to
+`clusters/<env>` — the entry points in `clusters/staging` and
+`clusters/production` are those real-deployment paths (see
+`docs/production-aws.md`).
 
 ## Assumptions
 

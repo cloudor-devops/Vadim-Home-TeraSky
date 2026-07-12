@@ -1,0 +1,25 @@
+# Local demo: all three environments run on this cluster as namespaces.
+# In a real deployment each env is its own cluster bootstrapped to
+# clusters/production (same overlays; see clusters/production/).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps-production
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-policies
+  interval: 5m
+  path: ./apps/production
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  # Per-env decryption key: production secrets can only be decrypted by the
+  # production key even on a shared demo cluster.
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age-production
