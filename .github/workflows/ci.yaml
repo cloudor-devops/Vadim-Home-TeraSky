@@ -104,4 +104,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "chore(dev): deploy ${{ needs.build.outputs.tag }}"
-          git push
+          # main may have moved while build ran; rebase our bump onto it.
+          for i in 1 2 3; do
+            git push && break
+            git pull --rebase origin main
+          done
