@@ -7,11 +7,13 @@ Downward API (spec.nodeName).
 
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 logger = logging.getLogger("node-info")
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
@@ -36,6 +38,28 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="node-info", version=APP_VERSION, lifespan=lifespan)
+
+HTTP_REQUESTS = Counter(
+    "http_requests_total", "Total HTTP requests", ["method", "path", "status"]
+)
+HTTP_LATENCY = Histogram(
+    "http_request_duration_seconds", "HTTP request latency", ["method", "path"]
+)
+
+
+@app.middleware("http")
+async def record_metrics(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    path = request.url.path
+    HTTP_REQUESTS.labels(request.method, path, response.status_code).inc()
+    HTTP_LATENCY.labels(request.method, path).observe(time.perf_counter() - start)
+    return response
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/health")

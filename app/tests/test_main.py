@@ -32,6 +32,13 @@ def test_health(client):
     assert response.json()["status"] == "ok"
 
 
+def test_metrics_exposes_request_counter(client):
+    client.get("/health")
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    assert "http_requests_total" in response.text
+
+
 def test_nodes_marks_current_node(client, monkeypatch):
     nodes = [
         fake_node("worker-1", role_label="node-role.kubernetes.io/control-plane"),
