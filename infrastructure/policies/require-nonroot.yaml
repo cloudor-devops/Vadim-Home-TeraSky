@@ -1,0 +1,29 @@
+# Containers running as root turn any container escape into a node
+# compromise. runAsNonRoot makes the kubelet refuse root images outright.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-run-as-nonroot
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-nonroot
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, flux-system, kyverno, local-path-storage]
+      validate:
+        message: "Pods must set securityContext.runAsNonRoot=true (pod or container level)."
+        anyPattern:
+          - spec:
+              securityContext:
+                runAsNonRoot: true
+          - spec:
+              containers:
+                - securityContext:
+                    runAsNonRoot: true

@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: node-info-dev
 resources:
   - namespace.yaml
+  - node-info-secrets.enc.yaml
   - ../base/node-info
 patches:
   - patch: |
@@ -23,3 +24,5 @@ patches:
             tag: sha-b1e767e
             pullSecrets:
               - name: ghcr-pull
+          secret:
+            existingSecret: node-info-secrets

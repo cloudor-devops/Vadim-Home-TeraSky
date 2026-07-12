@@ -1,0 +1,27 @@
+# Privileged containers get every capability and full device access —
+# equivalent to root on the node. Never acceptable for workloads.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-privileged
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: deny-privileged-and-escalation
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, flux-system, kyverno, local-path-storage]
+      validate:
+        message: "Privileged mode and privilege escalation are not allowed."
+        pattern:
+          spec:
+            containers:
+              - =(securityContext):
+                  =(privileged): "false"
+                  =(allowPrivilegeEscalation): "false"

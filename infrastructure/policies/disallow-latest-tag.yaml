@@ -1,0 +1,25 @@
+# Mutable tags make deployments unreproducible and break rollback:
+# ':latest' yesterday and ':latest' today can be different images.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-latest-tag
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-immutable-tag
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, flux-system, kyverno, local-path-storage]
+      validate:
+        message: "Image tag is required and must not be 'latest'; use an immutable tag (e.g. sha-<commit>)."
+        pattern:
+          spec:
+            containers:
+              - image: "!*:latest & *:*"

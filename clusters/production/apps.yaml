@@ -5,6 +5,8 @@ metadata:
   name: apps
   namespace: flux-system
 spec:
+  dependsOn:
+    - name: infra-policies
   interval: 5m
   path: ./apps/production
   prune: true

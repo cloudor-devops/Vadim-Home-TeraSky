@@ -1,0 +1,28 @@
+# Without readiness probes, traffic reaches pods that can't serve it during
+# rollouts; without liveness probes, wedged processes are never restarted.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-probes
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-liveness-readiness
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, flux-system, kyverno, local-path-storage]
+      validate:
+        message: "livenessProbe and readinessProbe are required on all containers."
+        pattern:
+          spec:
+            containers:
+              - livenessProbe:
+                  periodSeconds: ">0"
+                readinessProbe:
+                  periodSeconds: ">0"

@@ -1,0 +1,13 @@
+# SOPS encryption rules: each environment has its own age key, so a leaked
+# dev key can never decrypt staging/production secrets. Private keys live
+# outside Git (per-cluster Kubernetes secret sops-age; a KMS in production).
+creation_rules:
+  - path_regex: apps/dev/.*\.enc\.yaml$
+    encrypted_regex: ^(data|stringData)$
+    age: age1ynh89279chl2pd2rw4vkduy0vmxk999ryers7thh223wx3xeughstwue9v
+  - path_regex: apps/staging/.*\.enc\.yaml$
+    encrypted_regex: ^(data|stringData)$
+    age: age1gzp3qquwxqwmhzuk5zhx32xajsjgf5npclwsze988h0hvnuuncfquwtef3
+  - path_regex: apps/production/.*\.enc\.yaml$
+    encrypted_regex: ^(data|stringData)$
+    age: age1gkl9eta2jwwym9xrtkc4034jgr9wv2aw84wvtacfh7vn3f200ersnf4tsj
