@@ -57,6 +57,7 @@ jobs:
       - uses: actions/checkout@v4
       - id: vars
         run: echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - name: Build image (local, for scanning)
         uses: docker/build-push-action@v6
@@ -78,12 +79,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Push image
+      - name: Push image (multi-arch)
         if: github.event_name == 'push'
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          # arm64 included so the image runs on Apple Silicon dev clusters.
+          platforms: linux/amd64,linux/arm64
           tags: ${{ env.IMAGE }}:${{ steps.vars.outputs.tag }}
 
   deploy-dev:
