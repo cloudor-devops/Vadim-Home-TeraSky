@@ -16,3 +16,10 @@ patches:
             valuesFiles:
               - charts/node-info/values.yaml
               - charts/node-info/values-production.yaml
+        values:
+          image:
+            repository: ghcr.io/cloudor-devops/node-info
+            # Promoted by PR: copy the tag verified in staging.
+            tag: sha-0000000
+            pullSecrets:
+              - name: ghcr-pull

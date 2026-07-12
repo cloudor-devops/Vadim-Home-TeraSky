@@ -20,6 +20,10 @@ spec:
         # Roll pods automatically when config changes.
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       serviceAccountName: {{ include "node-info.serviceAccountName" . }}
       automountServiceAccountToken: true
       securityContext:

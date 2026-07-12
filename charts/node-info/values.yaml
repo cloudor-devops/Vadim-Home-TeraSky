@@ -5,6 +5,8 @@ image:
   repository: node-info
   tag: "0.1.0"
   pullPolicy: IfNotPresent
+  # e.g. [{name: ghcr-pull}] when pulling from a private registry
+  pullSecrets: []
 
 # Used only when hpa.enabled=false; otherwise the HPA owns the replica count.
 replicaCount: 2
