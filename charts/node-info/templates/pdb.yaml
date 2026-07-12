@@ -8,6 +8,9 @@ metadata:
     {{- include "node-info.labels" . | nindent 4 }}
 spec:
   minAvailable: {{ .Values.pdb.minAvailable }}
+  # Allow eviction of pods that are Running but not Ready; without this,
+  # unhealthy pods can block node drains indefinitely.
+  unhealthyPodEvictionPolicy: AlwaysAllow
   selector:
     matchLabels:
       {{- include "node-info.selectorLabels" . | nindent 6 }}
