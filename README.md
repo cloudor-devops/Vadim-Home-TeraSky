@@ -75,6 +75,10 @@ apps/{dev,staging,production}/  env overlay: namespace, SOPS secret,
 clusters/{dev,staging,production}/  per-cluster Flux entry points
 infrastructure/controllers/ Kyverno (Flux HelmRelease)
 infrastructure/policies/    5 enforcing ClusterPolicies
+infrastructure/flagger/     blue/green controller — dormant locally,
+                            activated by clusters/production/flagger.yaml
+infrastructure/monitoring/  kube-prometheus-stack — dormant locally,
+                            suspended Kustomization in clusters/dev/monitoring.yaml
 infra/terraform/            AWS reference IaC: VPC, EKS, ECR, KMS, IRSA
 k8s/rbac-proof/             standalone RBAC demo manifests (pre-Helm)
 hack/kind-config.yaml       3-node local cluster config
@@ -206,6 +210,17 @@ kube-prometheus-stack + Loki + Alertmanager, and Velero backups.
   namespace.
 - **checkov/tfsec in CI for the Terraform** — the pipeline lints Kubernetes
   manifests but not the IaC; policy-as-code should cover both.
+
+**Observability:**
+- **Monitoring stack as code, dormant locally** — kube-prometheus-stack is
+  defined in `infrastructure/monitoring/` (small footprint: 24h retention,
+  control-plane scrapers off, bounded resources) behind a *suspended* Flux
+  Kustomization (`clusters/dev/monitoring.yaml`). Enabling it is a one-line
+  change (`suspend: false`) plus flipping `monitoring.enabled` in the chart
+  values, which adds a ServiceMonitor for `/metrics` and a PrometheusRule
+  carrying the three alerts from `docs/monitoring.md` (high 5xx rate, crash
+  looping, deployment below desired replicas) with runbook annotations.
+  Without the stack, `/metrics` is still demonstrable via port-forward.
 
 **Delivery:**
 - **Flagger blue/green for production** — configuration is prepared in this
