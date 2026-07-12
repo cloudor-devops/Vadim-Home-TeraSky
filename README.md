@@ -181,6 +181,33 @@ separate EKS clusters per environment, Karpenter node provisioning,
 kube-prometheus-stack + Loki + Alertmanager, Velero backups, and progressive
 delivery (Flagger canaries) as the next maturity step.
 
+### Prioritized next steps on EKS
+
+**Networking & cost (cheap wins first):**
+- **VPC endpoints** for ECR, S3, STS, CloudWatch — image pulls and telemetry
+  stop transiting NAT gateways: cuts the NAT bill and keeps cluster traffic
+  inside the VPC. The most-forgotten item in EKS designs.
+- **NodeLocal DNSCache + CoreDNS autoscaling** — DNS is the first thing that
+  melts under load on EKS; the `kubernetes` client in this app does lookups
+  on every API call.
+- **Topology spread constraints across AZs** for production — the current pod
+  anti-affinity spreads across *nodes*; `topology.kubernetes.io/zone` spread
+  is what actually survives an AZ event.
+
+**Security (managed-first):**
+- **EKS Pod Identity over IRSA** — same outcome (IAM role per
+  ServiceAccount) with less ceremony (no per-cluster OIDC trust wiring).
+  The Terraform here uses IRSA; Pod Identity is the modernization path.
+- **Bottlerocket AMIs** for nodes — minimal, immutable, API-driven OS;
+  shrinks patching scope dramatically and pairs well with Karpenter.
+- **GuardDuty EKS Runtime Monitoring** — managed runtime threat detection
+  (crypto-miners, reverse shells) instead of self-hosting Falco.
+- **Pod Security Admission** (`restricted` profile via namespace labels) as
+  the built-in floor under Kyverno — defense in depth for one label per
+  namespace.
+- **checkov/tfsec in CI for the Terraform** — the pipeline lints Kubernetes
+  manifests but not the IaC; policy-as-code should cover both.
+
 - `docs/monitoring.md` — metrics, logging, alerting design with PromQL
 - `docs/security.md` — secrets management, RBAC, policy-as-code
 - `docs/production-aws.md` — EKS production architecture
