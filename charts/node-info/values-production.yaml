@@ -8,6 +8,11 @@ podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8000"
 
+# Flip once kube-prometheus-stack runs on this cluster
+# (clusters/<env>: unsuspend infra-monitoring):
+# monitoring:
+#   enabled: true
+
 resources:
   requests:
     cpu: 100m

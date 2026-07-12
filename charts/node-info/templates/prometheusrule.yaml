@@ -1,0 +1,46 @@
+{{- if .Values.monitoring.enabled }}
+# The three alerts from docs/monitoring.md, as code.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "node-info.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "node-info.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: node-info.rules
+      rules:
+        - alert: NodeInfoHighErrorRate
+          expr: |
+            sum(rate(http_requests_total{status=~"5..", namespace="{{ .Release.Namespace }}"}[5m]))
+              / sum(rate(http_requests_total{namespace="{{ .Release.Namespace }}"}[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "node-info 5xx error rate above 5% in {{ .Release.Namespace }}"
+            description: "{{`{{ $value | humanizePercentage }}`}} of requests are failing. Recent deploy? Check `flux get helmreleases -n {{ .Release.Namespace }}` and the overlay git log; rollback is `git revert` of the last tag bump."
+            runbook: "1) Grafana: error-rate panel by path. 2) Loki: ERROR logs for the namespace. 3) If correlated with a deploy, git revert; else check Kubernetes API availability (the app calls list nodes)."
+        - alert: NodeInfoPodCrashLooping
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace="{{ .Release.Namespace }}", pod=~"{{ include "node-info.fullname" . }}-.*"}[15m]) > 3
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "node-info pod restarting repeatedly in {{ .Release.Namespace }}"
+            description: "Pod {{`{{ $labels.pod }}`}} restarted more than 3 times in 15m."
+            runbook: "1) kubectl describe pod (OOMKilled? probe failures?). 2) Previous-container logs. 3) If OOM, review resource limits vs. usage; if probe, check /health latency."
+        - alert: NodeInfoDeploymentUnavailable
+          expr: |
+            kube_deployment_status_replicas_available{deployment="{{ include "node-info.fullname" . }}", namespace="{{ .Release.Namespace }}"}
+              < kube_deployment_spec_replicas{deployment="{{ include "node-info.fullname" . }}", namespace="{{ .Release.Namespace }}"}
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "node-info running below desired replicas in {{ .Release.Namespace }}"
+            description: "{{`{{ $value }}`}} available vs desired. Scheduling pressure, image pull failure, or PDB-blocked eviction."
+            runbook: "1) kubectl get pods -o wide (Pending? ImagePullBackOff?). 2) kubectl get events --sort-by=.lastTimestamp. 3) Node capacity: kubectl top nodes / HPA at max?"
+{{- end }}

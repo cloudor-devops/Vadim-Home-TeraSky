@@ -1,0 +1,24 @@
+# Monitoring stack — PREPARED BUT DORMANT on the local demo cluster
+# (same pattern as clusters/production/flagger.yaml).
+#
+# To enable: set `suspend: false` and let Flux reconcile
+# (flux resume kustomization infra-monitoring). Also flip
+# `monitoring.enabled` in the app chart values to create its
+# ServiceMonitor and PrometheusRule.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-monitoring
+  namespace: flux-system
+spec:
+  suspend: true
+  dependsOn:
+    - name: infra-controllers
+  interval: 10m
+  path: ./infrastructure/monitoring
+  prune: true
+  wait: true
+  timeout: 10m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system

@@ -1,6 +1,30 @@
 # Monitoring and Logging
 
 Not deployed in the demo (per assignment); this is the production design.
+The stack itself is **prepared as code** and dormant, same pattern as
+Flagger: `infrastructure/monitoring/` (kube-prometheus-stack HelmRelease)
+plus a gated ServiceMonitor + PrometheusRule in the app chart.
+
+## How to enable
+
+1. Unsuspend the stack: in `clusters/<env>/monitoring.yaml` set
+   `suspend: false` (or `flux resume kustomization infra-monitoring`).
+2. Flip the app chart flag in the env values:
+   `monitoring.enabled: true` → the chart adds a ServiceMonitor (scrapes
+   `/metrics`) and a PrometheusRule with the three alerts below.
+
+## Demo without the stack
+
+The metrics are observable with zero infrastructure:
+
+```bash
+kubectl -n node-info-dev port-forward svc/node-info 8080:80
+curl -s localhost:8080/metrics | grep http_
+```
+
+This shows the raw Prometheus exposition format — request counters per
+path/status (including the kubelet's own probe traffic) and latency
+histogram buckets — exactly what the ServiceMonitor would scrape.
 
 ## Stack
 

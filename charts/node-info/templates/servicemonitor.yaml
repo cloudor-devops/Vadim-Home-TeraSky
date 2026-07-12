@@ -1,0 +1,20 @@
+{{- if .Values.monitoring.enabled }}
+# Requires the Prometheus Operator CRDs (kube-prometheus-stack,
+# infrastructure/monitoring). Gated so the chart installs cleanly on
+# clusters without them.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "node-info.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "node-info.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "node-info.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+{{- end }}

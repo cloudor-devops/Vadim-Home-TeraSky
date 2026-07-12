@@ -37,6 +37,12 @@ serviceAccount:
 # Extra pod annotations, e.g. prometheus.io/* scrape hints.
 podAnnotations: {}
 
+# ServiceMonitor + PrometheusRule (requires Prometheus Operator CRDs —
+# see infrastructure/monitoring). Off by default so the chart installs
+# on clusters without the monitoring stack.
+monitoring:
+  enabled: false
+
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 10001
