@@ -178,8 +178,7 @@ key. In production each is a separate cluster bootstrapped to
 
 Cosign image signing + Kyverno verifyImages, ESO with AWS Secrets Manager,
 separate EKS clusters per environment, Karpenter node provisioning,
-kube-prometheus-stack + Loki + Alertmanager, Velero backups, and progressive
-delivery (Flagger canaries) as the next maturity step.
+kube-prometheus-stack + Loki + Alertmanager, and Velero backups.
 
 ### Prioritized next steps on EKS
 
@@ -207,6 +206,17 @@ delivery (Flagger canaries) as the next maturity step.
   namespace.
 - **checkov/tfsec in CI for the Terraform** — the pipeline lints Kubernetes
   manifests but not the IaC; policy-as-code should cover both.
+
+**Delivery:**
+- **Flagger blue/green for production** — configuration is prepared in this
+  repo: `infrastructure/flagger/` (controller) and `apps/production/flagger/`
+  (Canary with error-rate and p95-latency gates against the app's own
+  `/metrics`), activated by `clusters/production/flagger.yaml` when the real
+  production cluster is bootstrapped. Green must pass analysis before the
+  Service selector switches atomically; failure = automatic rollback while
+  blue keeps serving. Staging should run the same mechanism (looser gates)
+  for pipeline parity. Not enabled on the local demo cluster: analysis gates
+  without real traffic prove nothing.
 
 - `docs/monitoring.md` — metrics, logging, alerting design with PromQL
 - `docs/security.md` — secrets management, RBAC, policy-as-code

@@ -1,0 +1,79 @@
+# Blue/green delivery for production.
+#
+# Flagger clones the node-info Deployment to node-info-primary (blue, serving
+# traffic) and treats new versions as green: it brings the new ReplicaSet up,
+# runs the analysis below against it, and only then switches the Service
+# selector atomically. A failed analysis = automatic rollback, blue never
+# stopped serving.
+#
+# Note on Flux integration: Flagger scales the source Deployment to 0 and
+# owns the -primary copy. The HelmRelease renders no `replicas` field (HPA
+# owns scaling), so helm-controller drift detection does not fight this.
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: node-info
+  namespace: node-info-production
+spec:
+  provider: kubernetes
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: node-info
+  autoscalerRef:
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    name: node-info
+  service:
+    port: 80
+    targetPort: http
+  analysis:
+    # Blue/green: `iterations` health-check rounds on green before the switch.
+    interval: 30s
+    iterations: 5
+    threshold: 3
+    metrics:
+      - name: error-rate
+        templateRef:
+          name: node-info-error-rate
+          namespace: node-info-production
+        # Promote only if 5xx rate stays under 1%.
+        thresholdRange:
+          max: 1
+        interval: 1m
+      - name: latency-p95
+        templateRef:
+          name: node-info-latency
+          namespace: node-info-production
+        # Promote only if p95 stays under 500ms.
+        thresholdRange:
+          max: 0.5
+        interval: 1m
+---
+apiVersion: flagger.app/v1beta1
+kind: MetricTemplate
+metadata:
+  name: node-info-error-rate
+  namespace: node-info-production
+spec:
+  provider:
+    type: prometheus
+    address: http://flagger-prometheus.flagger-system:9090
+  query: |
+    100 * sum(rate(http_requests_total{namespace="{{ namespace }}",pod=~"{{ target }}-[0-9a-zA-Z]+(-[0-9a-zA-Z]+)",status=~"5.."}[1m]))
+    /
+    sum(rate(http_requests_total{namespace="{{ namespace }}",pod=~"{{ target }}-[0-9a-zA-Z]+(-[0-9a-zA-Z]+)"}[1m]))
+---
+apiVersion: flagger.app/v1beta1
+kind: MetricTemplate
+metadata:
+  name: node-info-latency
+  namespace: node-info-production
+spec:
+  provider:
+    type: prometheus
+    address: http://flagger-prometheus.flagger-system:9090
+  query: |
+    histogram_quantile(0.95,
+      sum(rate(http_request_duration_seconds_bucket{namespace="{{ namespace }}",pod=~"{{ target }}-[0-9a-zA-Z]+(-[0-9a-zA-Z]+)"}[1m])) by (le)
+    )

@@ -34,6 +34,9 @@ serviceAccount:
   create: true
   name: ""
 
+# Extra pod annotations, e.g. prometheus.io/* scrape hints.
+podAnnotations: {}
+
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 10001

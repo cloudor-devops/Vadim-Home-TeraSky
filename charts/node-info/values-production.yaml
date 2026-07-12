@@ -3,6 +3,11 @@
 config:
   logLevel: INFO
 
+# Scraped by Flagger's Prometheus for blue/green analysis gates.
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8000"
+
 resources:
   requests:
     cpu: 100m
