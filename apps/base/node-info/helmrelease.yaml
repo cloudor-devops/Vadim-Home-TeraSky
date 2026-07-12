@@ -17,6 +17,10 @@ spec:
         namespace: flux-system
       valuesFiles:
         - charts/node-info/values.yaml
+  # Detect and correct manual changes to Helm-managed objects
+  # (kustomize-controller already does this for its own objects).
+  driftDetection:
+    mode: enabled
   install:
     remediation:
       retries: 3
