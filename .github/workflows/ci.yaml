@@ -44,6 +44,23 @@ jobs:
           curl -sSLo kube-linter.tar.gz https://github.com/stackrox/kube-linter/releases/latest/download/kube-linter-linux.tar.gz
           tar -xzf kube-linter.tar.gz
           ./kube-linter lint rendered/
+      - name: Install Kyverno CLI
+        uses: kyverno/action-install-cli@v0.2.0
+        with:
+          release: v1.18.2
+      - name: Kyverno policy check (same policies the cluster enforces)
+        # Check-only here; the cluster enforces the identical ClusterPolicies
+        # at admission. CI = early warning, admission webhook = the gate.
+        run: |
+          kyverno apply \
+            infrastructure/policies/disallow-latest-tag.yaml \
+            infrastructure/policies/disallow-privileged.yaml \
+            infrastructure/policies/require-nonroot.yaml \
+            infrastructure/policies/require-probes.yaml \
+            infrastructure/policies/require-resources.yaml \
+            --resource rendered/dev.yaml \
+            --resource rendered/staging.yaml \
+            --resource rendered/production.yaml
 
   build:
     needs: test

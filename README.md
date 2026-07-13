@@ -114,6 +114,13 @@ curl localhost:8080/nodes
 
 - **CI never touches the cluster.** It tests, builds, scans, pushes the image,
   and commits the new tag for dev. Flux is the only deployer.
+- **Policy checks run twice, in two roles.** CI runs `kyverno apply` against
+  the rendered manifests using the *same* ClusterPolicies from
+  `infrastructure/policies/` — check-only, an early warning that fails the
+  pipeline pre-merge. The cluster then enforces those identical policies for
+  real at admission. One policy source, no drift between what CI checks and
+  what the webhook blocks (kube-linter adds a second, independent linter on
+  top).
 - **Image tags are immutable**: `sha-<short-commit>`. No `latest`, ever
   (Kyverno enforces this in-cluster too).
 - **Update strategy**: RollingUpdate with `maxSurge: 1, maxUnavailable: 0` —
