@@ -5,7 +5,7 @@ LB subnets), EKS (KMS-encrypted secrets, IRSA, audit logs), ECR (immutable
 tags, scan-on-push), and the IRSA role for External Secrets Operator.
 
 Not applied for the demo — the assignment runs on kind
-(`hack/kind-config.yaml`). This is the production shape described in
+(`kind-config.yaml`). This is the production shape described in
 `docs/production-aws.md`.
 
 ## Usage (per environment)

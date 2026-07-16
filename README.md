@@ -81,7 +81,7 @@ infrastructure/monitoring/  kube-prometheus-stack — dormant locally,
                             suspended Kustomization in clusters/dev/monitoring.yaml
 infra/terraform/            AWS reference IaC: VPC, EKS, ECR, KMS, IRSA
 k8s/rbac/                   standalone RBAC demo manifests (pre-Helm)
-hack/kind-config.yaml       3-node local cluster config
+kind-config.yaml       3-node local cluster config
 docs/                       monitoring, security/secrets, AWS production design
 ```
 
@@ -89,7 +89,7 @@ docs/                       monitoring, security/secrets, AWS production design
 
 ```bash
 # 1. Cluster
-kind create cluster --name vadim-kind-cluster --config hack/kind-config.yaml
+kind create cluster --name vadim-kind-cluster --config kind-config.yaml
 
 # 2. SOPS decryption key (out-of-band, never in Git)
 kubectl create ns flux-system
