@@ -120,6 +120,18 @@ curl localhost:8080/nodes
   real at admission. One policy source, no drift between what CI checks and
   what the webhook blocks (kube-linter adds a second, independent linter on
   top).
+- **Validation layers** — each CI gate catches a different class of error
+  before merge:
+
+  | Layer | Check | Catches |
+  |---|---|---|
+  | Code | pytest | logic bugs in the app |
+  | Chart | helm lint + template (×3 envs) | broken templates, bad values |
+  | Manifest quality | kube-linter | missing probes/limits, security gaps |
+  | Policies | kyverno apply (same policies as the cluster) | violations the admission webhook would block post-merge |
+  | Overlays | kubectl kustomize + flux build (offline) | broken HelmRelease patches, missing/mis-listed resources — errors that would otherwise only surface in Flux after merge |
+  | Image | Trivy | HIGH/CRITICAL CVEs in OS packages and dependencies |
+
 - **Image tags are immutable**: `sha-<short-commit>`. No `latest`, ever
   (Kyverno enforces this in-cluster too).
 - **Update strategy**: RollingUpdate with `maxSurge: 1, maxUnavailable: 0` —

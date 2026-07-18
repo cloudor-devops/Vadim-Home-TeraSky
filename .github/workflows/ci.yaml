@@ -44,6 +44,31 @@ jobs:
           curl -sSLo kube-linter.tar.gz https://github.com/stackrox/kube-linter/releases/latest/download/kube-linter-linux.tar.gz
           tar -xzf kube-linter.tar.gz
           ./kube-linter lint rendered/
+      - name: Setup flux CLI
+        uses: fluxcd/flux2/action@v2.9.2
+        with:
+          version: 2.9.2
+      - name: Build kustomize overlays and Flux entry points
+        # Helm checks validate the chart, but Flux consumes the overlay
+        # layer: a broken HelmRelease patch or a missing resource in a
+        # kustomization.yaml would otherwise surface post-merge in Flux,
+        # not in the PR. SOPS secrets pass through as YAML (no decryption).
+        run: |
+          for d in apps/dev apps/staging apps/production \
+                   infrastructure/controllers infrastructure/policies \
+                   infrastructure/monitoring infrastructure/flagger \
+                   apps/production/flagger; do
+            echo "kustomize build $d"
+            kubectl kustomize "$d" > /dev/null
+          done
+          for f in clusters/*/[a-z]*.yaml; do
+            case "$f" in */flux-system/*) continue ;; esac
+            while read -r name path; do
+              echo "flux build $f -> $name ($path)"
+              flux build kustomization "$name" \
+                --kustomization-file "$f" --path "$path" --dry-run > /dev/null
+            done < <(yq -N '.metadata.name + " " + .spec.path' "$f")
+          done
       - name: Install Kyverno CLI
         uses: kyverno/action-install-cli@v0.2.0
         with:
