@@ -40,9 +40,13 @@ VPC per environment (10.x.0.0/16)
 
 ## IAM and workload identity
 
-- **IRSA / EKS Pod Identity**: each workload's ServiceAccount maps to an IAM
-  role. ESO's SA can read only its env's secrets path; no node-level
-  credentials, no static keys in pods.
+- **EKS Pod Identity** (implemented in `infra/terraform/`): each workload's
+  ServiceAccount maps to an IAM role via a Pod Identity association — a
+  first-class AWS resource, no per-cluster OIDC trust wiring and no
+  ServiceAccount annotations. ESO's SA can read only its env's secrets
+  path; no node-level credentials, no static keys in pods. IRSA (the OIDC
+  provider) is kept only for third-party charts that don't support Pod
+  Identity yet.
 - Humans: SSO (IAM Identity Center) → `aws-auth`/access entries mapping to
   Kubernetes groups; read-only by default, changes via Git.
 - CI: GitHub Actions **OIDC federation** — no long-lived AWS keys in GitHub;

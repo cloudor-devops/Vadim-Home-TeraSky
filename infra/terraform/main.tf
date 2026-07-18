@@ -62,6 +62,12 @@ module "eks" {
 
   cluster_enabled_log_types = ["api", "audit", "authenticator"]
 
+  # Workload identity: EKS Pod Identity (the agent runs as an addon).
+  # The OIDC provider (IRSA) is kept only for third-party charts that
+  # don't support Pod Identity yet.
+  cluster_addons = {
+    eks-pod-identity-agent = {}
+  }
   enable_irsa = true
 
   # Baseline system node group; application capacity is provisioned
@@ -107,18 +113,17 @@ resource "aws_ecr_lifecycle_policy" "node_info" {
   })
 }
 
-# --- IRSA: External Secrets Operator may read only this env's secrets ---
+# --- Pod Identity: External Secrets Operator may read only this env's secrets ---
+# EKS Pod Identity replaces IRSA: the trust policy points at the EKS Pod
+# Identity service instead of a per-cluster OIDC provider, and the binding
+# to a ServiceAccount is a first-class AWS resource (association below) —
+# no ServiceAccount annotations, no OIDC trust wiring per role.
 data "aws_iam_policy_document" "eso_assume" {
   statement {
-    actions = ["sts:AssumeRoleWithWebIdentity"]
+    actions = ["sts:AssumeRole", "sts:TagSession"]
     principals {
-      type        = "Federated"
-      identifiers = [module.eks.oidc_provider_arn]
-    }
-    condition {
-      test     = "StringEquals"
-      variable = "${module.eks.oidc_provider}:sub"
-      values   = ["system:serviceaccount:external-secrets:external-secrets"]
+      type        = "Service"
+      identifiers = ["pods.eks.amazonaws.com"]
     }
   }
 }
@@ -139,4 +144,12 @@ resource "aws_iam_role_policy" "eso" {
   name   = "read-env-secrets"
   role   = aws_iam_role.eso.id
   policy = data.aws_iam_policy_document.eso_read.json
+}
+
+# The actual binding: this ServiceAccount in this namespace gets this role.
+resource "aws_eks_pod_identity_association" "eso" {
+  cluster_name    = module.eks.cluster_name
+  namespace       = "external-secrets"
+  service_account = "external-secrets"
+  role_arn        = aws_iam_role.eso.arn
 }

@@ -1,8 +1,10 @@
 # Infrastructure as Code (reference)
 
 Terraform for one environment's AWS footprint: VPC (private nodes, public
-LB subnets), EKS (KMS-encrypted secrets, IRSA, audit logs), ECR (immutable
-tags, scan-on-push), and the IRSA role for External Secrets Operator.
+LB subnets), EKS (KMS-encrypted secrets, audit logs, Pod Identity agent),
+ECR (immutable tags, scan-on-push), and an EKS Pod Identity role +
+association for External Secrets Operator (IRSA's OIDC provider is kept
+only for charts that don't support Pod Identity yet).
 
 Not applied for the demo — the assignment runs on kind
 (`kind-config.yaml`). This is the production shape described in

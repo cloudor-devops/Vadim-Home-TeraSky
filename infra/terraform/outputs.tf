@@ -11,6 +11,6 @@ output "ecr_repository_url" {
 }
 
 output "eso_role_arn" {
-  description = "Annotate the external-secrets ServiceAccount with this role"
+  description = "Bound to the external-secrets ServiceAccount by the Pod Identity association (no annotation needed)"
   value       = aws_iam_role.eso.arn
 }

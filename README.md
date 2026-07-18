@@ -207,7 +207,9 @@ kube-prometheus-stack + Loki + Alertmanager, and Velero backups.
 **Security (managed-first):**
 - **EKS Pod Identity over IRSA** — same outcome (IAM role per
   ServiceAccount) with less ceremony (no per-cluster OIDC trust wiring).
-  The Terraform here uses IRSA; Pod Identity is the modernization path.
+  Implemented in `infra/terraform/`: the Pod Identity agent addon plus an
+  association binding the ESO ServiceAccount to its least-privilege role;
+  the OIDC provider remains only for charts that still require IRSA.
 - **Bottlerocket AMIs** for nodes — minimal, immutable, API-driven OS;
   shrinks patching scope dramatically and pairs well with Karpenter.
 - **GuardDuty EKS Runtime Monitoring** — managed runtime threat detection
