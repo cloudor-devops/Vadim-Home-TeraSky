@@ -221,10 +221,13 @@ builds all three environments on every change (see Validation layers).
 - The GHCR pull secret is a personal token: dev-only convenience. Production
   uses IAM-based registry auth (no long-lived secrets).
 - No TLS locally (no ingress controller installed on kind by default).
-- staging/production have never run against a live cluster: their
-  configuration is complete and CI-verified, but the first bootstrap is
-  also their first integration test. A namespaces-on-one-cluster shortcut
-  was rejected because it misrepresents the isolation model.
+- staging/production exist as complete, CI-verified configuration, but no
+  cluster has run them yet. CI proves everything renders and builds; it
+  cannot prove runtime behavior (controllers starting, cloud integrations,
+  Flagger's first blue/green run on production). Plan: bootstrap staging
+  first and shake it down before trusting the same flow for production.
+  Running all environments as namespaces on one cluster was rejected: it
+  would look like isolation without providing it.
 - Secret rotation requires a pod restart (env vars snapshot at start);
   production would add stakater/reloader or ESO with rotation.
 
