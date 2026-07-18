@@ -244,11 +244,12 @@ kube-prometheus-stack + Loki + Alertmanager, and Velero backups.
   is what actually survives an AZ event.
 
 **Security (managed-first):**
-- **EKS Pod Identity over IRSA** — same outcome (IAM role per
-  ServiceAccount) with less ceremony (no per-cluster OIDC trust wiring).
-  Implemented in `infra/terraform/`: the Pod Identity agent addon plus an
-  association binding the ESO ServiceAccount to its least-privilege role;
-  the OIDC provider remains only for charts that still require IRSA.
+- **EKS Pod Identity — already implemented** (chosen over IRSA): same
+  outcome (IAM role per ServiceAccount) with less ceremony (no per-cluster
+  OIDC trust wiring). See `infra/terraform/`: the Pod Identity agent addon
+  plus an association binding the ESO ServiceAccount to its least-privilege
+  role. The legacy IRSA OIDC provider is intentionally kept as a fallback
+  for third-party charts that don't support Pod Identity yet.
 - **Bottlerocket AMIs** for nodes — minimal, immutable, API-driven OS;
   shrinks patching scope dramatically and pairs well with Karpenter.
 - **GuardDuty EKS Runtime Monitoring** — managed runtime threat detection
