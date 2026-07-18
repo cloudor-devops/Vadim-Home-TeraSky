@@ -8,7 +8,7 @@ SOPS-encrypted secrets, and Kyverno policy enforcement.
 
 ```mermaid
 flowchart LR
-    subgraph Git["GitHub: cloudor-devops/Vadim-Home-TeraSky"]
+    subgraph Git["Git repository: Vadim-Home-TeraSky"]
         code[app/ + Dockerfile]
         chart[charts/node-info]
         overlays[apps/dev,staging,production]
@@ -97,7 +97,7 @@ kubectl -n flux-system create secret generic sops-age \
   --from-file=age.agekey=$HOME/.config/sops/age/terasky-dev.txt
 
 # 3. Bootstrap Flux (installs controllers, then everything reconciles from Git)
-flux bootstrap github --owner=cloudor-devops --repository=Vadim-Home-TeraSky \
+flux bootstrap github --owner=<github-owner> --repository=Vadim-Home-TeraSky \
   --branch=main --path=clusters/dev --personal --token-auth
 
 # 4. GHCR pull secret (dev convenience; production uses IAM, see docs)
@@ -123,7 +123,7 @@ aws eks update-kubeconfig --name node-info-staging
 kubectl create ns flux-system
 kubectl -n flux-system create secret generic sops-age \
   --from-file=age.agekey=<staging age private key>    # per-env key, see .sops.yaml
-flux bootstrap github --owner=cloudor-devops --repository=Vadim-Home-TeraSky \
+flux bootstrap github --owner=<github-owner> --repository=Vadim-Home-TeraSky \
   --branch=main --path=clusters/staging --token-auth
 ```
 

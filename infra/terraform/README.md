@@ -23,7 +23,7 @@ aws eks update-kubeconfig --name node-info-staging
 kubectl create ns flux-system
 kubectl -n flux-system create secret generic sops-age \
   --from-file=age.agekey=<that env's age private key>   # see .sops.yaml
-flux bootstrap github --owner=cloudor-devops --repository=Vadim-Home-TeraSky \
+flux bootstrap github --owner=<github-owner> --repository=Vadim-Home-TeraSky \
   --branch=main --path=clusters/staging --token-auth
 ```
 
