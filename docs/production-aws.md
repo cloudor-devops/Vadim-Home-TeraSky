@@ -1,12 +1,17 @@
 # Production Design — AWS / EKS
 
-How this reference implementation runs in a real AWS environment.
+This is the design of the **staging and production environments** — not a
+hypothetical: their infrastructure is `infra/terraform/` (staging.tfvars /
+production.tfvars) and their GitOps entry points are `clusters/staging` and
+`clusters/production`, ready to bootstrap. Dev runs on local kind.
 
 ## Cluster architecture
 
-- **One EKS cluster per environment** (dev, staging, production), separate
-  AWS accounts under AWS Organizations (blast-radius isolation, per-account
-  IAM boundaries, clean cost attribution).
+- **One EKS cluster per promoted environment** (staging, production),
+  separate AWS accounts under AWS Organizations (blast-radius isolation,
+  per-account IAM boundaries, clean cost attribution). Dev stays on local
+  kind for fast iteration; a cloud dev cluster is an option when team
+  parity demands it.
 - Each cluster bootstrapped with Flux pointing at its `clusters/<env>` path —
   same repo, same promotion model as the demo.
 - Production: 3 AZs, control plane managed by EKS; nodes in private subnets.

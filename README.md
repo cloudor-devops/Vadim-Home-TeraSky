@@ -72,7 +72,8 @@ charts/node-info/           Helm chart: SA, ClusterRole/Binding, Deployment,
 apps/base/node-info/        Flux HelmRelease (chart from this repo)
 apps/{dev,staging,production}/  env overlay: namespace, SOPS secret,
                             values-<env>.yaml + pinned image tag
-clusters/{dev,staging,production}/  per-cluster Flux entry points
+clusters/dev/               Flux entry points — local kind cluster (live)
+clusters/{staging,production}/  Flux entry points — EKS clusters (by design)
 infrastructure/controllers/ Kyverno (Flux HelmRelease)
 infrastructure/policies/    5 enforcing ClusterPolicies
 infrastructure/flagger/     blue/green controller — dormant locally,
@@ -108,6 +109,26 @@ flux get kustomizations          # flux-system, infra-controllers, infra-policie
 kubectl -n node-info-dev port-forward svc/node-info 8080:80
 curl localhost:8080/nodes
 ```
+
+## Provisioning staging/production (EKS)
+
+Each promoted environment is its own EKS cluster, created from the same
+Terraform with its env tfvars, then handed to Flux:
+
+```bash
+cd infra/terraform
+terraform apply -var-file=staging.tfvars        # or production.tfvars
+
+aws eks update-kubeconfig --name node-info-staging
+kubectl create ns flux-system
+kubectl -n flux-system create secret generic sops-age \
+  --from-file=age.agekey=<staging age private key>    # per-env key, see .sops.yaml
+flux bootstrap github --owner=cloudor-devops --repository=Vadim-Home-TeraSky \
+  --branch=main --path=clusters/staging --token-auth
+```
+
+From that point the cluster reconciles `apps/staging` (or `apps/production`,
+including the Flagger blue/green add-on) from Git, same as dev.
 
 ## CI/CD and promotion
 
@@ -150,6 +171,7 @@ curl localhost:8080/nodes
 
 | | dev | staging | production |
 |---|---|---|---|
+| Runs on | local kind cluster (live) | EKS (by design, bootstrapped later) | EKS (by design, bootstrapped later) |
 | Replicas (HPA) | 1–2 | 2–4 | 3–10 |
 | PDB | disabled (1 replica would block drains) | minAvailable 1 | minAvailable 2 |
 | Ingress | none (port-forward) | HTTP | HTTPS + cert-manager |
@@ -157,19 +179,22 @@ curl localhost:8080/nodes
 | Deploy gate | auto (CI) | PR | PR |
 | Anti-affinity | – | – | spread across nodes |
 
-Each environment in this demo is a namespace on one kind cluster, reconciled
-by its own Flux Kustomization (`clusters/dev/apps*.yaml`) with its own SOPS
-key. In production each is a separate cluster bootstrapped to
-`clusters/<env>` — the entry points in `clusters/staging` and
-`clusters/production` are those real-deployment paths (see
-`docs/production-aws.md`).
+One cluster per environment, each defined entirely by files in this repo.
+**dev** is the local kind cluster and the only one running live.
+**staging** and **production** are EKS clusters: their infrastructure is
+`infra/terraform/` (one tfvars per env), their Flux entry points are
+`clusters/staging` and `clusters/production`, and each decrypts its secrets
+with its own age key. Until they are bootstrapped, their configuration is
+kept continuously correct by CI, which renders, lints, policy-checks, and
+builds all three environments on every change (see Validation layers).
 
 ## Assumptions
 
 - Single Git repo (monorepo) for app + chart + GitOps state: simplest to
   review; a real org would split app and platform repos (see Trade-offs).
-- The kind cluster simulates all environments; cloud specifics are documented
-  rather than provisioned (no AWS account required to review).
+- dev runs live on local kind; staging/production are designed as EKS
+  clusters and not provisioned for this demo (no AWS account required to
+  review) — their configs are validated by CI on every change.
 - GHCR package stays private; local pulls use a PAT-based secret.
 
 ## Design decisions & trade-offs
@@ -183,6 +208,7 @@ key. In production each is a separate cluster bootstrapped to
 | ClusterRole per release (name includes namespace) | dev/staging/prod can share a cluster without collisions | Slightly longer names |
 | `replicas` omitted when HPA enabled | `helm upgrade` must not fight the autoscaler | Initial replica count is HPA minReplicas |
 | Kyverno over OPA Gatekeeper | Native YAML policies, no Rego learning curve | Rego is more expressive for complex rules |
+| dev on kind, staging/prod as EKS-by-design | Honest isolation model — envs are clusters, not namespaces | staging/prod not demonstrable live; verified by CI + Terraform/docs |
 
 ## Known limitations
 
@@ -191,8 +217,10 @@ key. In production each is a separate cluster bootstrapped to
 - The GHCR pull secret is a personal token: dev-only convenience. Production
   uses IAM-based registry auth (no long-lived secrets).
 - No TLS locally (no ingress controller installed on kind by default).
-- staging/production overlays reconcile only when their clusters are
-  bootstrapped; on the single kind cluster only dev runs.
+- staging/production are not demonstrable live: they exist as complete,
+  CI-verified configuration until their EKS clusters are bootstrapped.
+  Trade-off accepted deliberately — a namespaces-on-one-cluster demo was
+  rejected because it misrepresents the isolation model.
 - Secret rotation requires a pod restart (env vars snapshot at start);
   production would add stakater/reloader or ESO with rotation.
 
