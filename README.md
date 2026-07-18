@@ -190,25 +190,29 @@ builds all three environments on every change (see Validation layers).
 
 ## Assumptions
 
-- Single Git repo (monorepo) for app + chart + GitOps state: simplest to
-  review; a real org would split app and platform repos (see Trade-offs).
-- dev runs live on local kind; staging/production are designed as EKS
-  clusters and not provisioned for this demo (no AWS account required to
-  review) — their configs are validated by CI on every change.
-- GHCR package stays private; local pulls use a PAT-based secret.
+- One stateless service, one team. No data tier lives in-cluster (databases
+  would be managed services), so backup/DR reduces to Git + re-bootstrap.
+- GHCR is the registry today; ECR migration lands with the EKS clusters
+  (images are multi-arch and registry-agnostic, so this is a config change).
+- Secret change cadence is low — SOPS fits until rotation frequency or
+  audit requirements trigger the move to External Secrets Operator.
+- dev runs on local kind; staging/production EKS configurations are
+  exercised only by CI until their clusters are bootstrapped.
 
 ## Design decisions & trade-offs
 
 | Decision | Why | Trade-off accepted |
 |---|---|---|
-| Helm chart rendered by Flux HelmRelease | Templating + per-env values; helm-controller gives atomic upgrades, retries, auto-rollback | More moving parts than plain Kustomize |
-| Monorepo | One PR shows the whole flow | Prod would split repos to separate app/platform permissions |
-| CI bumps dev tag by commit (not Flux Image Automation) | Fewer controllers, explicit audit trail | Extra CI job; Image Automation documented as alternative |
-| SOPS+age (implemented) over ESO (documented) | Fully demonstrable offline; Flux-native decryption | Rotation requires re-encrypt+commit; ESO is the production path |
-| ClusterRole per release (name includes namespace) | dev/staging/prod can share a cluster without collisions | Slightly longer names |
-| `replicas` omitted when HPA enabled | `helm upgrade` must not fight the autoscaler | Initial replica count is HPA minReplicas |
-| Kyverno over OPA Gatekeeper | Native YAML policies, no Rego learning curve | Rego is more expressive for complex rules |
-| dev on kind, staging/prod as EKS-by-design | Honest isolation model — envs are clusters, not namespaces | staging/prod not demonstrable live; verified by CI + Terraform/docs |
+| Helm chart rendered by Flux HelmRelease | One chart, per-env values; helm-controller runs real Helm upgrades with retries and automatic rollback | More moving parts than plain Kustomize; failures surface in HelmRelease status, one layer removed from kubectl |
+| Monorepo (app + chart + GitOps state) | Atomic changes and a single audit trail across code, chart, and env config — no cross-repo version skew | At team scale, app and platform split into separate repos for permission boundaries and smaller CI blast radius |
+| Deploys are Git commits written by CI (not Flux Image Automation) | Every deploy is a reviewable, revertable commit; no registry-polling controllers | One extra CI job; Image Automation suits teams wanting zero-touch dev deploys |
+| SOPS + [age](https://github.com/FiloSottile/age) keys now, ESO as target state | Secrets exist from day zero with no external service dependency; a full Git compromise leaks only ciphertext | Rotation is re-encrypt + commit + restart; no per-access audit — the trigger for moving to ESO + Secrets Manager |
+| Cluster per promoted environment | Control-plane blast-radius isolation; staging rehearses cluster upgrades before production; account-level IAM and audit boundaries | Extra control planes, NAT/egress cost, more clusters to patch |
+| dev on local kind | Fast inner loop, zero cloud cost per engineer | Parity gaps vs EKS: kindnet doesn't enforce NetworkPolicy; no cloud LB or IAM locally |
+| Chart installs N times per cluster (cluster-scoped names embed the namespace) | Keeps shared clusters possible where they belong: preview environments, shared dev | Longer resource names |
+| `replicas` omitted when HPA enabled | Reconciliation must never fight the autoscaler — a Git-driven replica reset mid-spike drops live capacity | Initial scale is expressed only via HPA minReplicas |
+| Kyverno over OPA Gatekeeper | Policies are plain YAML the whole team can review; the same policy files run in CI and at admission | Rego is more expressive for complex cross-object logic |
+| Flagger blue/green prepared for production only | Metric-gated atomic cutover needs real traffic to gate on | Extra controller; staging should adopt the same mechanism for pipeline parity before production relies on it |
 
 ## Known limitations
 
@@ -217,10 +221,10 @@ builds all three environments on every change (see Validation layers).
 - The GHCR pull secret is a personal token: dev-only convenience. Production
   uses IAM-based registry auth (no long-lived secrets).
 - No TLS locally (no ingress controller installed on kind by default).
-- staging/production are not demonstrable live: they exist as complete,
-  CI-verified configuration until their EKS clusters are bootstrapped.
-  Trade-off accepted deliberately — a namespaces-on-one-cluster demo was
-  rejected because it misrepresents the isolation model.
+- staging/production have never run against a live cluster: their
+  configuration is complete and CI-verified, but the first bootstrap is
+  also their first integration test. A namespaces-on-one-cluster shortcut
+  was rejected because it misrepresents the isolation model.
 - Secret rotation requires a pod restart (env vars snapshot at start);
   production would add stakater/reloader or ESO with rotation.
 
@@ -269,7 +273,7 @@ kube-prometheus-stack + Loki + Alertmanager, and Velero backups.
   values, which adds a ServiceMonitor for `/metrics` and a PrometheusRule
   carrying the three alerts from `docs/monitoring.md` (high 5xx rate, crash
   looping, deployment below desired replicas) with runbook annotations.
-  Without the stack, `/metrics` is still demonstrable via port-forward.
+  Without the stack, `/metrics` is directly observable via port-forward.
 
 **Delivery:**
 - **Flagger blue/green for production** — configuration is prepared in this

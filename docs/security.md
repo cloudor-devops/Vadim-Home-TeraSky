@@ -1,6 +1,9 @@
 # Security: Secrets, RBAC, Policy-as-Code
 
-## Secrets management (implemented: SOPS + age)
+## Secrets management (implemented: SOPS + [age](https://github.com/FiloSottile/age))
+
+age is the file-encryption tool SOPS uses here for key management; the
+lowercase name is the project's official spelling.
 
 **Where stored:** encrypted in Git (`apps/<env>/*.enc.yaml`). Only `data`/
 `stringData` values are ciphertext (`encrypted_regex`); metadata stays
