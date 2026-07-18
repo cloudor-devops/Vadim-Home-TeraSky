@@ -80,7 +80,6 @@ infrastructure/flagger/     blue/green controller — dormant locally,
 infrastructure/monitoring/  kube-prometheus-stack — dormant locally,
                             suspended Kustomization in clusters/dev/monitoring.yaml
 infra/terraform/            AWS reference IaC: VPC, EKS, ECR, KMS, IRSA
-k8s/rbac/                   standalone RBAC demo manifests (pre-Helm)
 kind-config.yaml       3-node local cluster config
 docs/                       monitoring, security/secrets, AWS production design
 ```
