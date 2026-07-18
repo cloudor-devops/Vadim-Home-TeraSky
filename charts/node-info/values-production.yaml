@@ -3,7 +3,8 @@
 config:
   logLevel: INFO
 
-# Scraped by Flagger's Prometheus for blue/green analysis gates.
+# Scrape hints for annotation-based Prometheus setups (e.g. canary
+# analysis); the monitoring stack's ServiceMonitor covers the rest.
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8000"

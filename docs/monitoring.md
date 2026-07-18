@@ -1,9 +1,9 @@
 # Monitoring and Logging
 
-The stack ships as dormant code, enabled per cluster — same pattern as
-Flagger: `infrastructure/monitoring/` (kube-prometheus-stack HelmRelease)
-plus a gated ServiceMonitor + PrometheusRule in the app chart. This
-document is the production design it implements.
+The stack ships as dormant code, enabled per cluster:
+`infrastructure/monitoring/` (kube-prometheus-stack HelmRelease) plus a
+gated ServiceMonitor + PrometheusRule in the app chart. This document is
+the production design it implements.
 
 ## How to enable
 
