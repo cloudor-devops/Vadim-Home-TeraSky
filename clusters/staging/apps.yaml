@@ -1,4 +1,9 @@
-# Entry point for the staging cluster: reconciles everything under apps/staging.
+# Entry point for the staging EKS cluster (provisioned via infra/terraform,
+# staging.tfvars). Activated by:
+#   flux bootstrap github --owner=cloudor-devops --repository=Vadim-Home-TeraSky \
+#     --branch=main --path=clusters/staging --token-auth
+# The sops-age secret below holds the STAGING age key (see .sops.yaml),
+# created out-of-band before bootstrap.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
