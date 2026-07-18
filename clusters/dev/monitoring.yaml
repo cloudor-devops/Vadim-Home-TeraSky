@@ -1,5 +1,4 @@
-# Monitoring stack — PREPARED BUT DORMANT on the local demo cluster
-# (same pattern as clusters/production/flagger.yaml).
+# Monitoring stack — PREPARED BUT DORMANT on the local demo cluster.
 #
 # To enable: set `suspend: false` and let Flux reconcile
 # (flux resume kustomization infra-monitoring). Also flip

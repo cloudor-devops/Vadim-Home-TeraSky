@@ -76,8 +76,6 @@ clusters/dev/               Flux entry points — local kind cluster (live)
 clusters/{staging,production}/  Flux entry points — EKS clusters (by design)
 infrastructure/controllers/ Kyverno (Flux HelmRelease)
 infrastructure/policies/    5 enforcing ClusterPolicies
-infrastructure/flagger/     blue/green controller — dormant locally,
-                            activated by clusters/production/flagger.yaml
 infrastructure/monitoring/  kube-prometheus-stack — dormant locally,
                             suspended Kustomization in clusters/dev/monitoring.yaml
 infra/terraform/            AWS reference IaC: VPC, EKS, ECR, KMS, Pod Identity
@@ -127,8 +125,8 @@ flux bootstrap github --owner=<github-owner> --repository=Vadim-Home-TeraSky \
   --branch=main --path=clusters/staging --token-auth
 ```
 
-From that point the cluster reconciles `apps/staging` (or `apps/production`,
-including the Flagger blue/green add-on) from Git, same as dev.
+From that point the cluster reconciles `apps/staging` (or `apps/production`)
+from Git, same as dev.
 
 ## CI/CD and promotion
 
@@ -212,7 +210,7 @@ builds all three environments on every change (see Validation layers).
 | Chart installs N times per cluster (cluster-scoped names embed the namespace) | Keeps shared clusters possible where they belong: preview environments, shared dev | Longer resource names |
 | `replicas` omitted when HPA enabled | Reconciliation must never fight the autoscaler — a Git-driven replica reset mid-spike drops live capacity | Initial scale is expressed only via HPA minReplicas |
 | Kyverno over OPA Gatekeeper | Policies are plain YAML the whole team can review; the same policy files run in CI and at admission | Rego is more expressive for complex cross-object logic |
-| Flagger blue/green prepared for production only | Metric-gated atomic cutover needs real traffic to gate on | Extra controller; staging should adopt the same mechanism for pipeline parity before production relies on it |
+| Progressive delivery documented, not implemented (Argo Rollouts + ALB weights) | Canary gates judge real traffic — on a cluster with none, they prove nothing; this belongs to the EKS stage | Production replaces the standard Deployment with the Rollout CRD when adopted |
 
 ## Known limitations
 
@@ -224,8 +222,8 @@ builds all three environments on every change (see Validation layers).
 - staging/production exist as complete, CI-verified configuration, but no
   cluster has run them yet. CI proves everything renders and builds; it
   cannot prove runtime behavior (controllers starting, cloud integrations,
-  Flagger's first blue/green run on production). Plan: bootstrap staging
-  first and shake it down before trusting the same flow for production.
+  cloud integrations). Plan: bootstrap staging first and shake it down
+  before trusting the same flow for production.
 - Secret rotation requires a pod restart (env vars snapshot at start);
   production would add stakater/reloader or ESO with rotation.
 
@@ -277,15 +275,14 @@ kube-prometheus-stack + Loki + Alertmanager, and Velero backups.
   Without the stack, `/metrics` is directly observable via port-forward.
 
 **Delivery:**
-- **Flagger blue/green for production** — configuration is prepared in this
-  repo: `infrastructure/flagger/` (controller) and `apps/production/flagger/`
-  (Canary with error-rate and p95-latency gates against the app's own
-  `/metrics`), activated by `clusters/production/flagger.yaml` when the real
-  production cluster is bootstrapped. Green must pass analysis before the
-  Service selector switches atomically; failure = automatic rollback while
-  blue keeps serving. Staging should run the same mechanism (looser gates)
-  for pipeline parity. Not enabled on the local demo cluster: analysis gates
-  without real traffic prove nothing.
+- **Canary releases: Argo Rollouts + ALB weighted target groups
+  (documented)** — in production the Deployment becomes a Rollout with the
+  same pod spec; new versions receive 10% → 50% → 100% of real traffic,
+  with Prometheus checks on the app's own `/metrics` (error rate, p95)
+  between steps and automatic rollback on bad numbers. The ALB itself
+  enforces the split — no service mesh needed. Documented rather than
+  implemented: canary gates without real traffic prove nothing on a local
+  cluster. Full design in `docs/production-aws.md`.
 
 - `docs/monitoring.md` — metrics, logging, alerting design with PromQL
 - `docs/security.md` — secrets management, RBAC, policy-as-code

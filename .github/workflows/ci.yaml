@@ -56,8 +56,7 @@ jobs:
         run: |
           for d in apps/dev apps/staging apps/production \
                    infrastructure/controllers infrastructure/policies \
-                   infrastructure/monitoring infrastructure/flagger \
-                   apps/production/flagger; do
+                   infrastructure/monitoring; do
             echo "kustomize build $d"
             kubectl kustomize "$d" > /dev/null
           done

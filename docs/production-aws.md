@@ -43,6 +43,40 @@ VPC per environment (10.x.0.0/16)
 - cert-manager + Let's Encrypt (DNS-01 via Route 53) or ACM certs on the ALB.
   The chart's production values already carry the cert-manager annotation.
 
+## Progressive delivery (canary releases)
+
+Documented, not implemented. The gates below judge real user traffic —
+on a cluster with no users there is nothing to judge, so this belongs to
+the EKS stage.
+
+**The idea in one paragraph.** Today a new version replaces the old one
+pod by pod (rolling update). With canary releases, the new version first
+gets a small share of real traffic. If it behaves, it gets more. If it
+misbehaves, traffic goes back to the old version — automatically, before
+most users ever saw it.
+
+**How it works here:**
+
+- Production swaps the standard Deployment for an **Argo Rollouts
+  `Rollout`** object. Same pod spec, same chart values — only the object
+  kind changes. Argo Rollouts is the most widely used progressive-delivery
+  controller, and it works with Flux as-is (ArgoCD is not required).
+- The rollout moves in steps: **10% → 50% → 100%** of traffic to the new
+  version, with a pause between steps.
+- The traffic split is enforced by the **ALB itself**: Rollouts adjusts
+  the target-group weights through the AWS Load Balancer Controller.
+  Amazon's load balancer does the splitting — there is no service mesh to
+  install or operate. (App Mesh, AWS's old answer here, reaches
+  end-of-life in September 2026.)
+- Between steps, Rollouts runs **AnalysisTemplates** — Prometheus queries
+  against the app's own `/metrics`: 5xx error rate and p95 latency. Bad
+  numbers stop the rollout and shift all traffic back to the old version.
+  Good numbers let it continue to the next step.
+
+**The trade-off:** the `Rollout` CRD replaces the standard Deployment in
+production — one more controller and CRD to own, and any tooling that
+assumes Deployments needs a second look.
+
 ## IAM and workload identity
 
 - **EKS Pod Identity** (implemented in `infra/terraform/`): each workload's
