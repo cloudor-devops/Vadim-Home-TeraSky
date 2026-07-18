@@ -226,8 +226,6 @@ builds all three environments on every change (see Validation layers).
   cannot prove runtime behavior (controllers starting, cloud integrations,
   Flagger's first blue/green run on production). Plan: bootstrap staging
   first and shake it down before trusting the same flow for production.
-  Running all environments as namespaces on one cluster was rejected: it
-  would look like isolation without providing it.
 - Secret rotation requires a pod restart (env vars snapshot at start);
   production would add stakater/reloader or ESO with rotation.
 
