@@ -79,8 +79,8 @@ infrastructure/flagger/     blue/green controller — dormant locally,
                             activated by clusters/production/flagger.yaml
 infrastructure/monitoring/  kube-prometheus-stack — dormant locally,
                             suspended Kustomization in clusters/dev/monitoring.yaml
-infra/terraform/            AWS reference IaC: VPC, EKS, ECR, KMS, IRSA
-kind-config.yaml       3-node local cluster config
+infra/terraform/            AWS reference IaC: VPC, EKS, ECR, KMS, Pod Identity
+kind-config.yaml            3-node local cluster config
 docs/                       monitoring, security/secrets, AWS production design
 ```
 
