@@ -252,7 +252,7 @@ block at admission — verified live.
 | require-probes | missing liveness/readiness | rollout safety, self-healing |
 | require-run-as-nonroot | root containers | limits container-escape impact |
 | disallow-privileged | privileged / escalation | protects the node |
-| restrict-registries | images from outside the project registry | supply-chain control: `disallow-latest-tag` sets which version, this sets from where |
+| restrict-registries | images from outside the project registry | only trusted images run: `disallow-latest-tag` sets which version, this sets from where |
 
 Platform namespaces (kube-system, flux-system, kyverno, reloader,
 monitoring) are excluded. The same policy files run in CI as a pre-merge
@@ -264,7 +264,7 @@ check.
 
 The stack ships as code and is toggled per cluster
 (`clusters/<env>/monitoring.yaml`; enabled on dev): kube-prometheus-stack
-sized small — 24h retention, bounded resources.
+sized small — 24h retention, low resource limits.
 
 | Layer | Tool |
 |---|---|
@@ -365,7 +365,7 @@ flowchart LR
     fluxc -->|pull every 1m| repo[(GitHub repository)]
     pods -.->|image pulls via endpoints| ecr[(ECR<br/>immutable sha tags, scan-on-push)]
     esoc -->|sync secrets| sm[(AWS Secrets Manager)]
-    sm --- kms[KMS CMK per env]
+    sm --- kms[KMS key per env]
     cp[EKS control plane<br/>AWS-managed, private endpoint] --> cw[CloudWatch<br/>api + audit + authenticator logs]
 ```
 
@@ -426,22 +426,23 @@ back automatically. Not run locally: canary checks need real traffic.
 **Audit logging.** Control-plane logs (api, audit, authenticator) →
 CloudWatch; CloudTrail; Git history + Flux events for deploys.
 
-**Encryption.** EKS secrets envelope-encrypted with a per-env KMS CMK;
+**Encryption.** Kubernetes Secrets encrypted in etcd with a per-environment KMS key;
 EBS/S3 encrypted by default; TLS at the load balancer.
 
 **Backup and restore.** Velero → S3 for cluster state; the primary
 recovery is GitOps: fresh cluster + `flux bootstrap` + the sops-age key.
-Databases are managed services with their own PITR backups.
+Databases are managed services with their own point-in-time backups.
 
 **Scaling and nodes.** HPA for pods (in the chart); Karpenter for nodes —
 just-in-time provisioning, consolidation, Spot and Graviton.
 
 **Cost.** Spot + Graviton nodes; Karpenter consolidation; VPC endpoints
-cut NAT traffic; single NAT outside production; Kubecost for showback.
+cut NAT traffic; single NAT outside production; Kubecost for cost visibility.
 
-**Disaster recovery.** Clusters are cattle: re-bootstrap from Git.
+**Disaster recovery.** Clusters are replaceable, not repairable: a lost
+cluster is recreated from Git, not debugged.
 Multi-AZ by default; multi-region only with a business case (ECR
-replication + Route 53 failover + a warm standby on the same repo).
+replication + Route 53 failover + a standby cluster on the same repo).
 Runbook: Terraform → restore keys → flux bootstrap → verify → shift DNS.
 
 **Infrastructure as code.** Terraform owns "the platform exists"; Flux
@@ -468,7 +469,7 @@ owns "what runs on it". Terraform never applies Kubernetes manifests.
 | Monorepo (app + chart + GitOps state) | Atomic changes, one audit trail | Larger teams split app and platform repos |
 | CI commits the dev tag (no Image Automation) | Every deploy is a reviewable, revertable commit | One extra CI job |
 | SOPS + [age](https://github.com/FiloSottile/age) now, ESO as target | No external dependency at day zero; a Git leak exposes only ciphertext | Rotation needs commit + restart; no access audit |
-| Cluster per promoted environment | Blast-radius isolation; staging rehearses cluster upgrades | More control planes and NAT cost |
+| Cluster per promoted environment | A failure in one environment cannot reach another; staging takes cluster upgrades first | More control planes and NAT cost |
 | dev on local kind | Fully reproducible on any machine, no cloud account | kindnet doesn't enforce NetworkPolicy; no cloud LB/IAM |
 | Cluster-scoped names embed the namespace | Chart installs more than once per cluster | Longer names |
 | `replicas` omitted when HPA enabled | Reconciliation must not fight the autoscaler | Initial scale comes from HPA minReplicas |
@@ -483,8 +484,8 @@ owns "what runs on it". Terraform never applies Kubernetes manifests.
   production pulls via IAM.
 - No TLS locally (no ingress controller on kind).
 - staging/production have not run on a real cluster yet. CI validates
-  rendering and builds, not runtime. Plan: bootstrap staging first and
-  shake it down before production.
+  rendering and builds, not runtime. Plan: bootstrap staging first and test
+  it well before production.
 - Secrets reach pods as env vars, read at container start; Reloader rolls
   pods automatically on change.
 
@@ -515,8 +516,8 @@ Velero.
 
 **Observability:**
 - **Alerting to humans** — wire Flux notification-controller and
-  Alertmanager to Slack/PagerDuty; a failed production reconciliation
-  must page someone.
+  Alertmanager to Slack/PagerDuty; a failed production deployment
+  must alert a human.
 
 **Delivery:**
 - **Argo Rollouts + ALB canary** — documented above; adoption is swapping
