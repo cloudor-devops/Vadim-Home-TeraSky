@@ -252,14 +252,11 @@ block at admission — verified live.
 | require-probes | missing liveness/readiness | rollout safety, self-healing |
 | require-run-as-nonroot | root containers | limits container-escape impact |
 | disallow-privileged | privileged / escalation | protects the node |
+| restrict-registries | images from outside the project registry | supply-chain control: `disallow-latest-tag` sets which version, this sets from where |
 
 Platform namespaces (kube-system, flux-system, kyverno, reloader,
 monitoring) are excluded. The same policy files run in CI as a pre-merge
 check.
-
-Planned sixth policy: **restrict-registries** — only images from the
-project registry may run. Completes the supply chain:
-`disallow-latest-tag` controls which version, this controls from where.
 
 ## Monitoring and logging
 
