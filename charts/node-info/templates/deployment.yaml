@@ -5,6 +5,11 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "node-info.labels" . | nindent 4 }}
+  annotations:
+    # Reloader rolls pods when referenced Secrets/ConfigMaps change —
+    # covers updates Helm's checksum can't see (SOPS/ESO-managed Secrets).
+    # Inert if Reloader isn't installed.
+    reloader.stakater.com/auto: "true"
 spec:
   {{- if not .Values.hpa.enabled }}
   replicas: {{ .Values.replicaCount }}

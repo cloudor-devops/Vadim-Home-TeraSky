@@ -16,7 +16,7 @@ spec:
       exclude:
         any:
           - resources:
-              namespaces: [kube-system, flux-system, kyverno, local-path-storage]
+              namespaces: [kube-system, flux-system, kyverno, reloader, local-path-storage]
       validate:
         message: "Pods must set securityContext.runAsNonRoot=true (pod or container level)."
         anyPattern:
