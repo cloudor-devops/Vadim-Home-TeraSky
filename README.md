@@ -2,8 +2,10 @@
 
 Reference implementation for the DevOps Engineer home assignment: a Python
 backend deployed to Kubernetes via **Flux GitOps**, with CI on GitHub Actions,
-SOPS-encrypted secrets, and Kyverno policy enforcement.
+SOPS-encrypted secrets, and Kyverno policy enforcement. This README is the
+single document for the whole solution.
 
+<!-- Assignment §8: Architecture diagram -->
 ## Architecture
 
 ```mermaid
@@ -50,6 +52,7 @@ flowchart LR
     np[NetworkPolicy] -.-> pod
 ```
 
+<!-- Assignment §2: Application — /health, /nodes with current-node marking, dedicated ServiceAccount with least-privilege RBAC -->
 ## The application
 
 `GET /health` — liveness/readiness endpoint (no downstream dependencies, by design).
@@ -59,32 +62,59 @@ flowchart LR
 
 The pod authenticates to the Kubernetes API with a dedicated ServiceAccount
 bound to a ClusterRole allowing only `get`/`list` on `nodes` (ClusterRole
-because nodes are cluster-scoped; read-only, single resource).
+because nodes are cluster-scoped; read-only, single resource). Verified:
+
+```bash
+kubectl auth can-i list nodes   --as=system:serviceaccount:node-info-dev:node-info   # yes
+kubectl auth can-i list secrets --as=system:serviceaccount:node-info-dev:node-info -A # no
+```
 
 ## Repository layout
 
 ```
 app/                        Python/FastAPI service + unit tests
 Dockerfile                  multi-stage, non-root (USER 10001)
-charts/node-info/           Helm chart: SA, ClusterRole/Binding, Deployment,
-                            Service, Ingress, ConfigMap, HPA, PDB,
-                            NetworkPolicy, SecurityContext, probes, resources
+charts/node-info/           Helm chart (all Kubernetes objects, see below)
 apps/base/node-info/        Flux HelmRelease (chart from this repo)
 apps/{dev,staging,production}/  env overlay: namespace, SOPS secret,
                             values-<env>.yaml + pinned image tag
+apps/{staging,production}/eso/  ExternalSecret + SecretStore (EKS, dormant)
 clusters/dev/               Flux entry points — local kind cluster (live)
 clusters/{staging,production}/  Flux entry points — EKS clusters (by design)
 infrastructure/controllers/ Kyverno + Reloader (Flux HelmReleases)
 infrastructure/policies/    5 enforcing ClusterPolicies
-infrastructure/monitoring/  kube-prometheus-stack — toggled per cluster via
-                            clusters/<env>/monitoring.yaml (enabled on dev)
-infrastructure/eso/         External Secrets Operator — dormant, activated
-                            by clusters/{staging,production}/eso.yaml
-infra/terraform/            AWS reference IaC: VPC, EKS, ECR, KMS, Pod Identity
+infrastructure/monitoring/  kube-prometheus-stack — toggled per cluster
+infrastructure/eso/         External Secrets Operator — dormant, for EKS
+infra/terraform/            AWS IaC: VPC, EKS, ECR, KMS, Pod Identity
 kind-config.yaml            3-node local cluster config
-docs/                       monitoring, security/secrets, AWS production design
 ```
 
+<!-- Assignment §3: Kubernetes requirements — namespaces, Deployment, Service, Ingress, ConfigMap, Secret, SA, ClusterRole/Binding, resources, probes, SecurityContext, HPA, PDB, NetworkPolicy, env-specific config -->
+## Kubernetes design
+
+Everything the workload needs is one Helm chart (`charts/node-info/`),
+rendered per environment by Flux:
+
+- **Namespace per environment** (created by the env overlays)
+- **Deployment** — RollingUpdate `maxSurge: 1, maxUnavailable: 0`; Downward
+  API for `NODE_NAME`; config checksum annotation rolls pods on change;
+  Reloader annotation rolls pods on Secret change
+- **Service** (ClusterIP) and **Ingress** (enabled in staging/production;
+  TLS + cert-manager annotations in production)
+- **ConfigMap** for app settings; **Secret** referenced, never templated —
+  the chart consumes an externally managed Secret (SOPS or ESO)
+- **ServiceAccount + ClusterRole + ClusterRoleBinding** — least privilege;
+  cluster-scoped names embed the namespace so the chart installs N times
+  per cluster without collisions
+- **Resource requests/limits**, **liveness + readiness probes**,
+  **SecurityContext** (runAsNonRoot, readOnlyRootFilesystem, drop ALL
+  capabilities, seccomp RuntimeDefault)
+- **HPA** (CPU-based; the chart omits `replicas` when HPA is on so
+  reconciliation never fights the autoscaler), **PDB**
+  (`unhealthyPodEvictionPolicy: AlwaysAllow`), **NetworkPolicy**
+  (ingress only from the ingress controller; egress only DNS + API server)
+
+<!-- Assignment §8: README with deployment instructions -->
 ## Running locally (kind)
 
 ```bash
@@ -100,12 +130,12 @@ kubectl -n flux-system create secret generic sops-age \
 flux bootstrap github --owner=<github-owner> --repository=Vadim-Home-TeraSky \
   --branch=main --path=clusters/dev --personal --token-auth
 
-# 4. GHCR pull secret (dev convenience; production uses IAM, see docs)
+# 4. GHCR pull secret (dev convenience; production uses IAM, see below)
 kubectl -n node-info-dev create secret docker-registry ghcr-pull \
   --docker-server=ghcr.io --docker-username=<user> --docker-password=<PAT with read:packages>
 
 # 5. Verify
-flux get kustomizations          # flux-system, infra-controllers, infra-policies, apps
+flux get kustomizations
 kubectl -n node-info-dev port-forward svc/node-info 8080:80
 curl localhost:8080/nodes
 ```
@@ -130,6 +160,7 @@ flux bootstrap github --owner=<github-owner> --repository=Vadim-Home-TeraSky \
 From that point the cluster reconciles `apps/staging` (or `apps/production`)
 from Git, same as dev.
 
+<!-- Assignment §4: GitOps and CI/CD — Flux, repo structure, promotion, pipeline, build/test/scan/push, tagging, update strategy, rollback, reconciliation and drift -->
 ## CI/CD and promotion
 
 - **CI never touches the cluster.** It tests, builds, scans, pushes the image,
@@ -165,8 +196,10 @@ from Git, same as dev.
   helm-controller auto-rolls-back failed upgrades (`remediation`), verified
   live: an unpullable image rolled back after timeout with zero downtime.
 - **Drift**: Flux reconciles every 5m; manual `kubectl` changes to managed
-  objects are reverted; `prune: true` removes objects deleted from Git.
+  objects are reverted (`driftDetection` enabled for Helm-managed objects);
+  `prune: true` removes objects deleted from Git.
 
+<!-- Assignment §3: environment-specific configuration; repo must support dev, staging, production -->
 ## Environments
 
 | | dev | staging | production |
@@ -186,8 +219,274 @@ One cluster per environment, each defined entirely by files in this repo.
 `clusters/staging` and `clusters/production`, and each decrypts its secrets
 with its own age key. Until they are bootstrapped, their configuration is
 kept continuously correct by CI, which renders, lints, policy-checks, and
-builds all three environments on every change (see Validation layers).
+builds all three environments on every change.
 
+<!-- Assignment §5 (extra credit): secrets management — where stored, how consumed, access control, per-env separation, rotation; policy-as-code with meaningful policies -->
+## Security: secrets, RBAC, policy-as-code
+
+### Secrets (implemented: SOPS + [age](https://github.com/FiloSottile/age))
+
+age is the file-encryption tool SOPS uses here for key management; the
+lowercase name is the project's official spelling.
+
+- **Where stored:** encrypted in Git (`apps/<env>/*.enc.yaml`). Only the
+  values are ciphertext; metadata stays diffable. Private age keys are
+  never in Git.
+- **How workloads consume them:** Flux decrypts at apply time using the
+  `sops-age` secret in `flux-system`; the decrypted Secret exists only
+  inside the cluster; the chart references it via `envFrom`.
+- **Access control:** encrypt = repo + public keys; decrypt = only holders
+  of the private key. A full Git compromise leaks ciphertext only.
+- **Environment separation:** one age keypair per environment — the dev
+  key cannot decrypt staging/production files (per-path rules in
+  `.sops.yaml`).
+- **Rotation:** edit with `sops`, commit → Flux applies the new Secret →
+  Reloader (installed) rolls the pods automatically. Key rotation:
+  `sops updatekeys` + replace the cluster's `sops-age` secret.
+
+### Production secrets (prepared, dormant): ESO + AWS Secrets Manager
+
+The full chain exists as code for the EKS clusters. Terraform creates the
+Secrets Manager container (`<env>/node-info`), the ESO IAM role (read-only
+on that env's path), and the Pod Identity association. GitOps holds the
+rest: `infrastructure/eso/` installs the operator; `apps/<env>/eso/` holds
+the SecretStore + ExternalSecret syncing into the same Secret the app
+already reads — activated by `clusters/<env>/eso.yaml` at bootstrap.
+Rotation then happens in AWS with no Git involvement: ESO re-syncs within
+a minute, Reloader rolls the pods, CloudTrail audits access. Enabling ESO
+replaces the SOPS-managed Secret (remove the `.enc.yaml` in the same
+change). SOPS remains for bootstrap secrets that must exist before ESO.
+
+### Policy-as-code (Kyverno, Enforce mode)
+
+Installed by Flux before the apps (`dependsOn` ordering); all policies
+block at admission — verified live against `nginx:latest` and a
+privileged pod.
+
+| Policy | Blocks | Rationale |
+|---|---|---|
+| disallow-latest-tag | untagged / `:latest` images | mutable tags break rollback + reproducibility |
+| require-requests-limits | pods without CPU/mem requests+limits | scheduling, HPA, noisy-neighbour protection |
+| require-probes | missing liveness/readiness | rollout safety, self-healing |
+| require-run-as-nonroot | root containers | container escape ≠ node root |
+| disallow-privileged | privileged / escalation | node takeover prevention |
+
+Platform namespaces (kube-system, flux-system, kyverno, reloader,
+monitoring) are excluded — third-party system charts are not ours to
+patch. The same policy files run in CI (`kyverno apply`) as a pre-merge
+check. Supply-chain next step: cosign-sign images in CI; Kyverno
+`verifyImages` admits only our CI's signatures.
+
+<!-- Assignment §6: Monitoring and logging — app metrics, workload monitoring, cluster monitoring, centralized logging, alerting, incident investigation, 3+ example alerts -->
+## Monitoring and logging
+
+The stack ships as code and is toggled per cluster
+(`clusters/<env>/monitoring.yaml`; enabled on dev):
+kube-prometheus-stack (Prometheus, Grafana, Alertmanager,
+kube-state-metrics, node-exporter) sized small for the demo — 24h
+retention, control-plane scrapers off, bounded resources.
+
+| Layer | Tool | Why |
+|---|---|---|
+| Metrics | Prometheus (Operator) | standard; ServiceMonitor CRDs manage scraping |
+| Dashboards | Grafana | provisioned dashboards as code |
+| Alert routing | Alertmanager → Slack/PagerDuty | dedup, grouping, silences |
+| Logs | Loki + promtail (or Fluent Bit → CloudWatch on EKS) | label-based, cheap; stdout only — no log files in pods |
+| Traces (later) | OpenTelemetry → Tempo/X-Ray | when service count justifies it |
+
+**Application metrics** — the app exposes `/metrics`:
+`http_requests_total{method,path,status}` (traffic + error rate) and
+`http_request_duration_seconds` (latency histograms → p95/p99). The chart
+carries a gated ServiceMonitor + PrometheusRule (`monitoring.enabled`)
+with three alerts as code, each with runbook annotations. Workload and
+cluster monitoring come from kube-state-metrics and node-exporter.
+
+**Example alerts (PromQL):**
+
+```yaml
+# 1. High 5xx error rate (>5% for 5m) — implemented in the chart
+- alert: NodeInfoHighErrorRate
+  expr: |
+    sum(rate(http_requests_total{status=~"5..", job="node-info"}[5m]))
+      / sum(rate(http_requests_total{job="node-info"}[5m])) > 0.05
+  for: 5m
+
+# 2. Pod crash looping — implemented in the chart
+- alert: PodCrashLooping
+  expr: increase(kube_pod_container_status_restarts_total[15m]) > 3
+  for: 5m
+
+# 3. Deployment below desired replicas — implemented in the chart
+- alert: DeploymentUnavailable
+  expr: |
+    kube_deployment_status_replicas_available{deployment="node-info"}
+      < kube_deployment_spec_replicas{deployment="node-info"}
+  for: 10m
+
+# 4. HPA pinned at max (cannot scale further)
+- alert: HPAMaxedOut
+  expr: |
+    kube_horizontalpodautoscaler_status_current_replicas
+      >= kube_horizontalpodautoscaler_spec_max_replicas
+  for: 15m
+
+# 5. High p95 latency
+- alert: NodeInfoSlowRequests
+  expr: |
+    histogram_quantile(0.95,
+      sum(rate(http_request_duration_seconds_bucket{job="node-info"}[5m])) by (le)
+    ) > 0.5
+  for: 10m
+
+# 6. Node memory pressure
+- alert: NodeMemoryPressure
+  expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
+  for: 5m
+```
+
+**Incident investigation flow:** alert fires (runbook link) → Grafana
+error-rate/latency panels → Loki logs filtered to the window → pod
+describe/events → "was there a deploy?" via `flux get helmreleases` + the
+overlay's git log → `git revert` is the rollback.
+
+**Access on dev:** `kubectl -n monitoring port-forward
+svc/kube-prometheus-stack-grafana 3000:80` → http://localhost:3000.
+Without the stack, `/metrics` is directly observable via port-forward.
+
+<!-- Assignment §7: Cloud production design — cluster architecture, networking, ingress/DNS/TLS, IAM/workload identity, registry, secrets, env separation, audit, encryption, backup/restore, scaling, cost, DR -->
+## Production design — AWS / EKS
+
+This is the design of the **staging and production environments** — not a
+hypothetical: their infrastructure is `infra/terraform/` (staging.tfvars /
+production.tfvars) and their GitOps entry points are `clusters/staging` and
+`clusters/production`, ready to bootstrap.
+
+```mermaid
+flowchart LR
+    subgraph vpc["Production account — VPC 10.20.0.0/16, 3 AZs"]
+        subgraph pub["Public subnets"]
+            alb[ALB / NLB<br/>TLS: cert-manager or ACM]
+            nat[NAT gateway per AZ]
+        end
+        subgraph priv["Private subnets — no public IPs"]
+            subgraph eks["EKS cluster (node-info-production)"]
+                nginx[ingress-nginx] --> pods[node-info pods<br/>HPA 3-10 · PDB · NetworkPolicy]
+                fluxc[Flux controllers]
+                esoc[External Secrets Operator<br/>Pod Identity, no keys]
+                karp[Karpenter<br/>just-in-time nodes, Spot/Graviton]
+            end
+        end
+        vpce[VPC endpoints<br/>ECR · S3 · STS · CloudWatch]
+    end
+
+    users((Users)) --> r53[Route 53<br/>records managed by ExternalDNS]
+    r53 --> alb
+    alb --> nginx
+    fluxc -->|pull every 1m| repo[(GitHub repository)]
+    pods -.->|image pulls via endpoints| ecr[(ECR<br/>immutable sha tags, scan-on-push)]
+    esoc -->|sync secrets| sm[(AWS Secrets Manager)]
+    sm --- kms[KMS CMK per env]
+    cp[EKS control plane<br/>AWS-managed, private endpoint] --> cw[CloudWatch<br/>api + audit + authenticator logs]
+```
+
+Everything inbound passes one load balancer; everything outbound to AWS
+services stays inside the VPC through endpoints; the only thing that ever
+"deploys" is Flux pulling Git.
+
+```mermaid
+flowchart TB
+    repo[(Git repository<br/>single source of truth)]
+    dev[dev — local kind<br/>clusters/dev]
+    subgraph org["AWS Organization — CloudTrail org trail"]
+        subgraph sa["Staging account"]
+            seks[EKS node-info-staging<br/>clusters/staging · staging.tfvars]
+        end
+        subgraph pa["Production account"]
+            peks[EKS node-info-production<br/>clusters/production · production.tfvars]
+        end
+    end
+    repo -->|flux bootstrap| dev
+    repo -->|flux bootstrap| seks
+    repo -->|flux bootstrap| peks
+```
+
+One repo drives all three clusters; the isolation boundary between
+environments is an AWS account, not a namespace.
+
+**Cluster architecture.** One EKS cluster per promoted environment, in its
+own AWS account (blast-radius isolation, account-level IAM and audit,
+clean cost attribution). 3 AZs; nodes in private subnets; managed add-ons
+pinned in Terraform; everything else installed by Flux from
+`infrastructure/`.
+
+**Networking.** Public subnets hold only the load balancer and NAT;
+nodes/pods have no public IPs and egress via NAT (VPC endpoints for
+ECR/S3/STS/CloudWatch keep most traffic inside the VPC). API endpoint
+private; human access via SSM, not bastions. NetworkPolicies enforced by
+the VPC CNI's policy agent or Cilium.
+
+**Ingress, DNS, TLS.** ingress-nginx behind NLB (keeps manifests
+cloud-agnostic, matches the chart) or ALB controller; ExternalDNS manages
+Route 53 from Ingress hosts; cert-manager with DNS-01 via Route 53 (or
+ACM at the ALB).
+
+**IAM and workload identity.** EKS Pod Identity (implemented in
+`infra/terraform/`): ServiceAccount → IAM role via a first-class
+association — no OIDC wiring, no annotations; ESO reads only its env's
+secrets path. IRSA's OIDC provider kept only for charts without Pod
+Identity support. Humans via SSO, read-only by default — changes go
+through Git. CI reaches AWS via GitHub OIDC federation, scoped to ECR
+push; no long-lived keys.
+
+**Container registry.** ECR per account, immutable tags, scan-on-push;
+nodes pull via IAM — no imagePullSecrets in production (the GHCR PAT in
+the demo is a local shortcut). Build once, replicate cross-account;
+promotion never rebuilds.
+
+**Progressive delivery (documented, not implemented).** Production swaps
+the Deployment for an **Argo Rollouts `Rollout`** (same pod spec). New
+versions receive 10% → 50% → 100% of real traffic; the split is enforced
+by the **ALB itself** via target-group weights (no service mesh; App Mesh
+is EOL Sept 2026). Between steps, AnalysisTemplates run Prometheus
+queries on the app's own `/metrics` (5xx rate, p95); bad numbers roll all
+traffic back automatically. Not implemented locally because canary gates
+without real traffic prove nothing. Trade-off: the Rollout CRD replaces
+the standard Deployment.
+
+**Audit logging.** EKS control-plane logs (api, audit, authenticator) →
+CloudWatch; CloudTrail org trail (immutable S3); Git history + Flux
+events are the deployment audit trail.
+
+**Encryption.** EKS secrets envelope-encrypted with a per-env KMS CMK;
+EBS/S3 encrypted by default; TLS at the LB (in-cluster mTLS only when
+compliance demands a mesh).
+
+**Backup and restore.** Velero → S3 for cluster state, but the primary
+recovery story is GitOps: fresh cluster + `flux bootstrap` + the sops-age
+key restores the stateless tier in minutes. Databases are managed
+services with native PITR — no data tier in-cluster.
+
+**Scaling and nodes.** HPA for pods (in the chart); Karpenter for nodes —
+just-in-time, consolidation, Spot for stateless workloads (PDB +
+anti-affinity already accommodate interruption), Graviton (images are
+multi-arch).
+
+**Cost.** Spot + Graviton; Karpenter consolidation; VPC endpoints cut NAT
+traffic; single NAT outside production; Kubecost for showback; right-size
+requests from Prometheus data.
+
+**Disaster recovery.** Clusters are cattle — re-bootstrap from Git
+(proven: this repo rebuilt the demo cluster from zero). Multi-AZ by
+default; multi-region only with a business case (ECR replication +
+Route 53 failover + a warm standby reconciling the same repo). Runbook:
+Terraform → restore sops-age/ESO IAM → flux bootstrap → verify → shift
+DNS. Target < 1h for the stateless tier.
+
+**Infrastructure as code.** Terraform owns "the platform exists"; Flux
+owns "what runs on it". The boundary is the cluster API — Terraform never
+applies Kubernetes manifests beyond Flux's bootstrap.
+
+<!-- Assignment §8: assumptions, design decisions, trade-offs, known limitations, production recommendations -->
 ## Assumptions
 
 - One stateless service, one team. No data tier lives in-cluster (databases
@@ -223,18 +522,19 @@ builds all three environments on every change (see Validation layers).
 - No TLS locally (no ingress controller installed on kind by default).
 - staging/production exist as complete, CI-verified configuration, but no
   cluster has run them yet. CI proves everything renders and builds; it
-  cannot prove runtime behavior (controllers starting, cloud integrations,
-  cloud integrations). Plan: bootstrap staging first and shake it down
-  before trusting the same flow for production.
+  cannot prove runtime behavior (controllers starting, cloud
+  integrations). Plan: bootstrap staging first and shake it down before
+  trusting the same flow for production.
 - Secret values reach pods as env vars, snapshotted at container start.
   Reloader (installed, `infrastructure/controllers/`) rolls pods
   automatically when a Secret changes; external rotation is the ESO path.
 
-## Production recommendations (summary — full detail in docs/)
+## Production recommendations
 
-Cosign image signing + Kyverno verifyImages, ESO with AWS Secrets Manager,
-separate EKS clusters per environment, Karpenter node provisioning,
-kube-prometheus-stack + Loki + Alertmanager, and Velero backups.
+Cosign image signing + Kyverno verifyImages, ESO with AWS Secrets Manager
+(prepared — see Security), separate EKS clusters per environment,
+Karpenter node provisioning, kube-prometheus-stack + Loki + Alertmanager,
+and Velero backups.
 
 ### Prioritized next steps on EKS
 
@@ -250,12 +550,9 @@ kube-prometheus-stack + Loki + Alertmanager, and Velero backups.
   is what actually survives an AZ event.
 
 **Security (managed-first):**
-- **EKS Pod Identity — already implemented** (chosen over IRSA): same
-  outcome (IAM role per ServiceAccount) with less ceremony (no per-cluster
-  OIDC trust wiring). See `infra/terraform/`: the Pod Identity agent addon
-  plus an association binding the ESO ServiceAccount to its least-privilege
-  role. The legacy IRSA OIDC provider is intentionally kept as a fallback
-  for third-party charts that don't support Pod Identity yet.
+- **EKS Pod Identity — already implemented** (chosen over IRSA): see
+  `infra/terraform/`. The legacy IRSA OIDC provider is intentionally kept
+  as a fallback for third-party charts that don't support Pod Identity yet.
 - **Bottlerocket AMIs** for nodes — minimal, immutable, API-driven OS;
   shrinks patching scope dramatically and pairs well with Karpenter.
 - **GuardDuty EKS Runtime Monitoring** — managed runtime threat detection
@@ -267,26 +564,11 @@ kube-prometheus-stack + Loki + Alertmanager, and Velero backups.
   manifests but not the IaC; policy-as-code should cover both.
 
 **Observability:**
-- **Monitoring stack as code, dormant locally** — kube-prometheus-stack is
-  defined in `infrastructure/monitoring/` (small footprint: 24h retention,
-  control-plane scrapers off, bounded resources) behind a *suspended* Flux
-  Kustomization (`clusters/dev/monitoring.yaml`). Enabling it is a one-line
-  change (`suspend: false`) plus flipping `monitoring.enabled` in the chart
-  values, which adds a ServiceMonitor for `/metrics` and a PrometheusRule
-  carrying the three alerts from `docs/monitoring.md` (high 5xx rate, crash
-  looping, deployment below desired replicas) with runbook annotations.
-  Without the stack, `/metrics` is directly observable via port-forward.
+- **Alerting to humans** — wire Flux's notification-controller and
+  Alertmanager to Slack/PagerDuty; a failed reconciliation in production
+  must page someone, not sit silently in a status field.
 
 **Delivery:**
-- **Canary releases: Argo Rollouts + ALB weighted target groups
-  (documented)** — in production the Deployment becomes a Rollout with the
-  same pod spec; new versions receive 10% → 50% → 100% of real traffic,
-  with Prometheus checks on the app's own `/metrics` (error rate, p95)
-  between steps and automatic rollback on bad numbers. The ALB itself
-  enforces the split — no service mesh needed. Documented rather than
-  implemented: canary gates without real traffic prove nothing on a local
-  cluster. Full design in `docs/production-aws.md`.
-
-- `docs/monitoring.md` — metrics, logging, alerting design with PromQL
-- `docs/security.md` — secrets management, RBAC, policy-as-code
-- `docs/production-aws.md` — EKS production architecture
+- **Canary releases with Argo Rollouts + ALB weights** — documented above
+  (Production design); the adoption step is swapping the Deployment for a
+  Rollout in the production overlay.
