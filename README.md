@@ -452,6 +452,16 @@ nodes pull via IAM — no imagePullSecrets in production (the GHCR PAT in
 the demo is a local shortcut). Build once, replicate cross-account;
 promotion never rebuilds.
 
+**Secrets-management integration.** AWS Secrets Manager + External Secrets
+Operator, KMS-encrypted, Pod-Identity-scoped per environment — the full
+chain is prepared as code (see the Security section above); rotation
+happens in AWS with no Git involvement.
+
+**Environment separation.** Isolation at every layer: one AWS account per
+promoted environment (Organizations), one cluster per account, one Git
+path and one age key per environment, per-env KMS keys and Secrets
+Manager instances, per-account ECR. Production changes land only by PR.
+
 **Progressive delivery (documented, not implemented).** Production swaps
 the Deployment for an **Argo Rollouts `Rollout`** (same pod spec). New
 versions receive 10% → 50% → 100% of real traffic; the split is enforced
