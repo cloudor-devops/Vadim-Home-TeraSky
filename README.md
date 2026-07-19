@@ -257,6 +257,10 @@ Platform namespaces (kube-system, flux-system, kyverno, reloader,
 monitoring) are excluded. The same policy files run in CI as a pre-merge
 check.
 
+Planned sixth policy: **restrict-registries** — only images from the
+project registry may run. Completes the supply chain:
+`disallow-latest-tag` controls which version, this controls from where.
+
 ## Monitoring and logging
 
 *Assignment §6 — metrics, logging, alerting with example alerts, and how incidents get investigated.*
