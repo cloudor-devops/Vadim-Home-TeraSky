@@ -10,7 +10,7 @@ metadata:
   name: infra-monitoring
   namespace: flux-system
 spec:
-  suspend: true
+  suspend: false
   dependsOn:
     - name: infra-controllers
   interval: 10m

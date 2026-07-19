@@ -76,8 +76,8 @@ clusters/dev/               Flux entry points — local kind cluster (live)
 clusters/{staging,production}/  Flux entry points — EKS clusters (by design)
 infrastructure/controllers/ Kyverno + Reloader (Flux HelmReleases)
 infrastructure/policies/    5 enforcing ClusterPolicies
-infrastructure/monitoring/  kube-prometheus-stack — dormant locally,
-                            suspended Kustomization in clusters/dev/monitoring.yaml
+infrastructure/monitoring/  kube-prometheus-stack — toggled per cluster via
+                            clusters/<env>/monitoring.yaml (enabled on dev)
 infrastructure/eso/         External Secrets Operator — dormant, activated
                             by clusters/{staging,production}/eso.yaml
 infra/terraform/            AWS reference IaC: VPC, EKS, ECR, KMS, Pod Identity
