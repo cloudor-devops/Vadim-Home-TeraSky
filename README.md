@@ -5,8 +5,9 @@ backend deployed to Kubernetes via **Flux GitOps**, with CI on GitHub Actions,
 SOPS-encrypted secrets, and Kyverno policy enforcement. This README is the
 single document for the whole solution.
 
-<!-- Assignment §8: Architecture diagram -->
 ## Architecture
+
+*Assignment §8 — the architecture diagrams: how a change travels, and what runs where.*
 
 ```mermaid
 flowchart LR
@@ -52,8 +53,9 @@ flowchart LR
     np[NetworkPolicy] -.-> pod
 ```
 
-<!-- Assignment §2: Application — /health, /nodes with current-node marking, dedicated ServiceAccount with least-privilege RBAC -->
 ## The application
+
+*Assignment §2 — the backend service, its two required endpoints, and least-privilege access to the Kubernetes API.*
 
 `GET /health` — liveness/readiness endpoint (no downstream dependencies, by design).
 `GET /nodes` — lists cluster nodes, marks the node the serving pod runs on
@@ -89,8 +91,9 @@ infra/terraform/            AWS IaC: VPC, EKS, ECR, KMS, Pod Identity
 kind-config.yaml            3-node local cluster config
 ```
 
-<!-- Assignment §3: Kubernetes requirements — namespaces, Deployment, Service, Ingress, ConfigMap, Secret, SA, ClusterRole/Binding, resources, probes, SecurityContext, HPA, PDB, NetworkPolicy, env-specific config -->
 ## Kubernetes design
+
+*Assignment §3 — every required Kubernetes object, and where each one lives.*
 
 Everything the workload needs is one Helm chart (`charts/node-info/`),
 rendered per environment by Flux:
@@ -114,8 +117,9 @@ rendered per environment by Flux:
   (`unhealthyPodEvictionPolicy: AlwaysAllow`), **NetworkPolicy**
   (ingress only from the ingress controller; egress only DNS + API server)
 
-<!-- Assignment §8: README with deployment instructions -->
 ## Running locally (kind)
+
+*Assignment §8 — deployment instructions, local first, cloud below.*
 
 ```bash
 # 1. Cluster
@@ -160,8 +164,9 @@ flux bootstrap github --owner=<github-owner> --repository=Vadim-Home-TeraSky \
 From that point the cluster reconciles `apps/staging` (or `apps/production`)
 from Git, same as dev.
 
-<!-- Assignment §4: GitOps and CI/CD — Flux, repo structure, promotion, pipeline, build/test/scan/push, tagging, update strategy, rollback, reconciliation and drift -->
 ## CI/CD and promotion
+
+*Assignment §4 — the GitOps model: pipeline, tagging, promotion, rollback, and drift handling.*
 
 - **CI never touches the cluster.** It tests, builds, scans, pushes the image,
   and commits the new tag for dev. Flux is the only deployer.
@@ -199,8 +204,9 @@ from Git, same as dev.
   objects are reverted (`driftDetection` enabled for Helm-managed objects);
   `prune: true` removes objects deleted from Git.
 
-<!-- Assignment §3: environment-specific configuration; repo must support dev, staging, production -->
 ## Environments
+
+*Assignment §3 — dev, staging, and production, each with its own configuration.*
 
 | | dev | staging | production |
 |---|---|---|---|
@@ -221,8 +227,9 @@ with its own age key. Until they are bootstrapped, their configuration is
 kept continuously correct by CI, which renders, lints, policy-checks, and
 builds all three environments on every change.
 
-<!-- Assignment §5 (extra credit): secrets management — where stored, how consumed, access control, per-env separation, rotation; policy-as-code with meaningful policies -->
 ## Security: secrets, RBAC, policy-as-code
+
+*Assignment §5 (extra credit) — secrets management end to end, and policies that actually enforce.*
 
 ### Secrets (implemented: SOPS + [age](https://github.com/FiloSottile/age))
 
@@ -277,8 +284,9 @@ patch. The same policy files run in CI (`kyverno apply`) as a pre-merge
 check. Supply-chain next step: cosign-sign images in CI; Kyverno
 `verifyImages` admits only our CI's signatures.
 
-<!-- Assignment §6: Monitoring and logging — app metrics, workload monitoring, cluster monitoring, centralized logging, alerting, incident investigation, 3+ example alerts -->
 ## Monitoring and logging
+
+*Assignment §6 — metrics, logging, alerting with example alerts, and how incidents get investigated.*
 
 The stack ships as code and is toggled per cluster
 (`clusters/<env>/monitoring.yaml`; enabled on dev):
@@ -353,8 +361,9 @@ overlay's git log → `git revert` is the rollback.
 svc/kube-prometheus-stack-grafana 3000:80` → http://localhost:3000.
 Without the stack, `/metrics` is directly observable via port-forward.
 
-<!-- Assignment §7: Cloud production design — cluster architecture, networking, ingress/DNS/TLS, IAM/workload identity, registry, secrets, env separation, audit, encryption, backup/restore, scaling, cost, DR -->
 ## Production design — AWS / EKS
+
+*Assignment §7 — the cloud production design, point by point.*
 
 This is the design of the **staging and production environments** — not a
 hypothetical: their infrastructure is `infra/terraform/` (staging.tfvars /
@@ -486,8 +495,9 @@ DNS. Target < 1h for the stateless tier.
 owns "what runs on it". The boundary is the cluster API — Terraform never
 applies Kubernetes manifests beyond Flux's bootstrap.
 
-<!-- Assignment §8: assumptions, design decisions, trade-offs, known limitations, production recommendations -->
 ## Assumptions
+
+*Assignment §8, from here down — assumptions, decisions and trade-offs, limitations, and recommendations.*
 
 - One stateless service, one team. No data tier lives in-cluster (databases
   would be managed services), so backup/DR reduces to Git + re-bootstrap.
