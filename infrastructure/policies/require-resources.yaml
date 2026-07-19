@@ -16,7 +16,7 @@ spec:
       exclude:
         any:
           - resources:
-              namespaces: [kube-system, flux-system, kyverno, reloader, local-path-storage]
+              namespaces: [kube-system, flux-system, kyverno, reloader, monitoring, local-path-storage]
       validate:
         message: "CPU and memory requests and limits are required."
         pattern:
