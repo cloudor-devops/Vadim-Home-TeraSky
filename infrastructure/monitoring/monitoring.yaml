@@ -69,7 +69,9 @@ spec:
 
     grafana:
       enabled: true
-      # Demo only. Production: existingSecret populated by ESO/SOPS.
+      # Demo cluster only — plaintext is acceptable for a local login.
+      # Production: admin.existingSecret populated by ESO from Secrets Manager.
+      adminPassword: admin
       resources:
         requests:
           cpu: 50m
