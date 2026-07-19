@@ -27,6 +27,5 @@ flux bootstrap github --owner=<github-owner> --repository=Vadim-Home-TeraSky \
   --branch=main --path=clusters/staging --token-auth
 ```
 
-One state per environment (separate backends/workspaces; separate AWS
-accounts in production). Terraform never applies Kubernetes manifests —
+One state per environment (separate backends or workspaces). Terraform never applies Kubernetes manifests —
 Flux owns everything inside the cluster.

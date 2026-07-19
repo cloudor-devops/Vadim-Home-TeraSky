@@ -1,5 +1,5 @@
 variable "environment" {
-  description = "Environment name (dev, staging, production) — one root/workspace per env, separate AWS accounts in production"
+  description = "Environment name (dev, staging, production) — one root/workspace per environment"
   type        = string
 }
 

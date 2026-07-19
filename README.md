@@ -343,7 +343,7 @@ Staging and production are designed for AWS: Terraform in
 
 ```mermaid
 flowchart LR
-    subgraph vpc["Production account — VPC 10.20.0.0/16, 3 AZs"]
+    subgraph vpc["Production — VPC 10.20.0.0/16, 3 AZs"]
         subgraph pub["Public subnets"]
             alb[ALB / NLB<br/>TLS: cert-manager or ACM]
             nat[NAT gateway per AZ]
@@ -376,25 +376,19 @@ endpoints; only Flux deploys.
 flowchart TB
     repo[(Git repository<br/>single source of truth)]
     dev[dev — local kind<br/>clusters/dev]
-    subgraph org["AWS Organization — CloudTrail org trail"]
-        subgraph sa["Staging account"]
-            seks[EKS node-info-staging<br/>clusters/staging · staging.tfvars]
-        end
-        subgraph pa["Production account"]
-            peks[EKS node-info-production<br/>clusters/production · production.tfvars]
-        end
-    end
+    seks[EKS node-info-staging<br/>clusters/staging · staging.tfvars]
+    peks[EKS node-info-production<br/>clusters/production · production.tfvars]
     repo -->|flux bootstrap| dev
     repo -->|flux bootstrap| seks
     repo -->|flux bootstrap| peks
 ```
 
-One repo drives all three clusters; each environment runs in its own AWS
-account.
+One repo drives all three clusters; each environment is its own cluster,
+VPC, and set of keys.
 
 **Cluster architecture.** One EKS cluster per promoted environment, each
-in its own AWS account. 3 AZs; nodes in private subnets; managed add-ons
-pinned in Terraform; everything else installed by Flux.
+in its own VPC. 3 AZs; nodes in private subnets; managed add-ons pinned
+in Terraform; everything else installed by Flux.
 
 **Networking.** Public subnets hold only the load balancer and NAT. Nodes
 and pods have no public IPs; VPC endpoints (ECR, S3, STS, CloudWatch)
@@ -411,17 +405,16 @@ reads only its environment's secrets path. Humans use SSO, read-only by
 default — changes go through Git. CI reaches AWS via GitHub OIDC,
 scoped to ECR push; no long-lived keys anywhere.
 
-**Container registry.** ECR per account: immutable tags, scan-on-push,
-IAM-based pulls (no imagePullSecrets). Build once, replicate
-cross-account; promotion never rebuilds.
+**Container registry.** ECR: immutable tags, scan-on-push, IAM-based
+pulls (no imagePullSecrets). Build once; promotion never rebuilds.
 
 **Secrets-management integration.** AWS Secrets Manager + ESO,
 KMS-encrypted, scoped per environment — prepared as code (see Security).
 Rotation happens in AWS with no Git commit.
 
-**Environment separation.** One AWS account per promoted environment, one
-cluster per account, one Git path and one age key per environment,
-per-env KMS keys and ECR. Production changes land only by PR.
+**Environment separation.** One cluster and VPC per environment, one Git
+path and one age key per environment, per-env KMS keys and IAM roles.
+Production changes land only by PR.
 
 **Progressive delivery (documented).** Production swaps the Deployment
 for an Argo Rollouts `Rollout` (same pod spec). New versions receive
@@ -431,7 +424,7 @@ on `/metrics` (5xx rate, p95) gate the rollout; bad numbers roll traffic
 back automatically. Not run locally: canary checks need real traffic.
 
 **Audit logging.** Control-plane logs (api, audit, authenticator) →
-CloudWatch; CloudTrail org trail; Git history + Flux events for deploys.
+CloudWatch; CloudTrail; Git history + Flux events for deploys.
 
 **Encryption.** EKS secrets envelope-encrypted with a per-env KMS CMK;
 EBS/S3 encrypted by default; TLS at the load balancer.
