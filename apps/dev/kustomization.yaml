@@ -21,7 +21,7 @@ patches:
           image:
             repository: ghcr.io/cloudor-devops/node-info
             # Updated automatically by CI on every merge to main.
-            tag: sha-d8298da
+            tag: sha-81e8fde
             pullSecrets:
               - name: ghcr-pull
           secret:
