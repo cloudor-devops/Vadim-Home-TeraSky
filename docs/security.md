@@ -25,8 +25,9 @@ cluster's key cannot decrypt staging/production files (distinct
 `creation_rules` per path in `.sops.yaml`).
 
 **Rotation:**
-- Secret value: edit with `sops`, commit → Flux applies; pods restarted to
-  pick up env changes (reloader annotation in production).
+- Secret value: edit with `sops`, commit → Flux applies the new Secret →
+  Reloader (installed, watching via the `reloader.stakater.com/auto`
+  annotation) rolls the pods automatically — no manual restart.
 - Key: `sops updatekeys` re-encrypts with the new recipient; replace the
   cluster's `sops-age` secret.
 

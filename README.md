@@ -74,7 +74,7 @@ apps/{dev,staging,production}/  env overlay: namespace, SOPS secret,
                             values-<env>.yaml + pinned image tag
 clusters/dev/               Flux entry points — local kind cluster (live)
 clusters/{staging,production}/  Flux entry points — EKS clusters (by design)
-infrastructure/controllers/ Kyverno (Flux HelmRelease)
+infrastructure/controllers/ Kyverno + Reloader (Flux HelmReleases)
 infrastructure/policies/    5 enforcing ClusterPolicies
 infrastructure/monitoring/  kube-prometheus-stack — dormant locally,
                             suspended Kustomization in clusters/dev/monitoring.yaml
@@ -226,8 +226,9 @@ builds all three environments on every change (see Validation layers).
   cannot prove runtime behavior (controllers starting, cloud integrations,
   cloud integrations). Plan: bootstrap staging first and shake it down
   before trusting the same flow for production.
-- Secret rotation requires a pod restart (env vars snapshot at start);
-  production would add stakater/reloader or ESO with rotation.
+- Secret values reach pods as env vars, snapshotted at container start.
+  Reloader (installed, `infrastructure/controllers/`) rolls pods
+  automatically when a Secret changes; external rotation is the ESO path.
 
 ## Production recommendations (summary — full detail in docs/)
 
