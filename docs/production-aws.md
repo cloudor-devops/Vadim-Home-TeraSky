@@ -5,6 +5,62 @@ hypothetical: their infrastructure is `infra/terraform/` (staging.tfvars /
 production.tfvars) and their GitOps entry points are `clusters/staging` and
 `clusters/production`, ready to bootstrap. Dev runs on local kind.
 
+## Production architecture
+
+```mermaid
+flowchart LR
+    subgraph vpc["Production account — VPC 10.20.0.0/16, 3 AZs"]
+        subgraph pub["Public subnets"]
+            alb[ALB / NLB<br/>TLS: cert-manager or ACM]
+            nat[NAT gateway per AZ]
+        end
+        subgraph priv["Private subnets — no public IPs"]
+            subgraph eks["EKS cluster (node-info-production)"]
+                nginx[ingress-nginx] --> pods[node-info pods<br/>HPA 3-10 · PDB · NetworkPolicy]
+                fluxc[Flux controllers]
+                esoc[External Secrets Operator<br/>Pod Identity, no keys]
+                karp[Karpenter<br/>just-in-time nodes, Spot/Graviton]
+            end
+        end
+        vpce[VPC endpoints<br/>ECR · S3 · STS · CloudWatch]
+    end
+
+    users((Users)) --> r53[Route 53<br/>records managed by ExternalDNS]
+    r53 --> alb
+    alb --> nginx
+    fluxc -->|pull every 1m| repo[(GitHub repository)]
+    pods -.->|image pulls via endpoints| ecr[(ECR<br/>immutable sha tags, scan-on-push)]
+    esoc -->|sync secrets| sm[(AWS Secrets Manager)]
+    sm --- kms[KMS CMK per env]
+    cp[EKS control plane<br/>AWS-managed, private endpoint] --> cw[CloudWatch<br/>api + audit + authenticator logs]
+```
+
+Everything inbound passes one load balancer; everything outbound to AWS
+services stays inside the VPC through endpoints; the only thing that ever
+"deploys" is Flux pulling Git.
+
+## Environment separation
+
+```mermaid
+flowchart TB
+    repo[(Git repository<br/>single source of truth)]
+    dev[dev — local kind<br/>clusters/dev]
+    subgraph org["AWS Organization — CloudTrail org trail"]
+        subgraph sa["Staging account"]
+            seks[EKS node-info-staging<br/>clusters/staging · staging.tfvars]
+        end
+        subgraph pa["Production account"]
+            peks[EKS node-info-production<br/>clusters/production · production.tfvars]
+        end
+    end
+    repo -->|flux bootstrap| dev
+    repo -->|flux bootstrap| seks
+    repo -->|flux bootstrap| peks
+```
+
+One repo drives all three clusters; the isolation boundary between
+environments is an AWS account, not a namespace.
+
 ## Cluster architecture
 
 - **One EKS cluster per promoted environment** (staging, production),
