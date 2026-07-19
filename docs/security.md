@@ -30,12 +30,18 @@ cluster's key cannot decrypt staging/production files (distinct
 - Key: `sops updatekeys` re-encrypts with the new recipient; replace the
   cluster's `sops-age` secret.
 
-**Production path — External Secrets Operator:** store secrets in AWS
-Secrets Manager; ESO syncs them into Kubernetes Secrets via an
-`ExternalSecret` CR. Rotation happens in AWS (Lambda rotators / managed RDS
-rotation) with no Git involvement; access controlled by IAM (IRSA per
-namespace); audit via CloudTrail. SOPS remains for bootstrap secrets that
-must exist before ESO does.
+**Production path — External Secrets Operator (prepared, dormant):** the
+full chain exists as code for the EKS clusters. Terraform creates the
+Secrets Manager container (`<env>/node-info`), the ESO IAM role (read-only
+on that env's path), and the Pod Identity association. GitOps holds the
+rest: `infrastructure/eso/` installs the operator; `apps/<env>/eso/` holds
+the SecretStore + ExternalSecret that sync the value into the same Secret
+the app already reads — activated by `clusters/<env>/eso.yaml` at
+bootstrap. Rotation then happens in AWS (console, CLI, or rotation Lambda)
+with no Git involvement: ESO re-syncs within a minute, Reloader rolls the
+pods. Audit via CloudTrail. Migration note: enabling ESO replaces the
+SOPS-managed Secret (remove the `.enc.yaml` in the same change). SOPS
+remains for bootstrap secrets that must exist before ESO does.
 
 ## RBAC
 

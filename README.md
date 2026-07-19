@@ -78,6 +78,8 @@ infrastructure/controllers/ Kyverno (Flux HelmRelease)
 infrastructure/policies/    5 enforcing ClusterPolicies
 infrastructure/monitoring/  kube-prometheus-stack — dormant locally,
                             suspended Kustomization in clusters/dev/monitoring.yaml
+infrastructure/eso/         External Secrets Operator — dormant, activated
+                            by clusters/{staging,production}/eso.yaml
 infra/terraform/            AWS reference IaC: VPC, EKS, ECR, KMS, Pod Identity
 kind-config.yaml            3-node local cluster config
 docs/                       monitoring, security/secrets, AWS production design

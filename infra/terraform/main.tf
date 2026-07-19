@@ -153,3 +153,12 @@ resource "aws_eks_pod_identity_association" "eso" {
   service_account = "external-secrets"
   role_arn        = aws_iam_role.eso.arn
 }
+
+# The secret container the app's ExternalSecret syncs from
+# (apps/<env>/eso/). Only the container is managed here — the VALUE is
+# set out-of-band (console/CLI/rotation Lambda) so it never enters
+# Terraform state.
+resource "aws_secretsmanager_secret" "node_info" {
+  name        = "${var.environment}/node-info"
+  description = "node-info app secrets for ${var.environment}; synced into the cluster by External Secrets Operator"
+}

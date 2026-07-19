@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: external-secrets
+  namespace: external-secrets
+spec:
+  interval: 1h
+  url: https://charts.external-secrets.io
+---
+# External Secrets Operator: syncs secrets from AWS Secrets Manager into
+# ordinary Kubernetes Secrets. AWS access comes from EKS Pod Identity —
+# the association in infra/terraform binds the "external-secrets"
+# ServiceAccount to an IAM role that can read only this environment's
+# secrets path. No keys, no annotations.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-secrets
+  namespace: external-secrets
+spec:
+  interval: 30m
+  timeout: 5m
+  chart:
+    spec:
+      chart: external-secrets
+      version: "0.x"
+      sourceRef:
+        kind: HelmRepository
+        name: external-secrets
+  values:
+    installCRDs: true

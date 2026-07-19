@@ -55,8 +55,9 @@ jobs:
         # not in the PR. SOPS secrets pass through as YAML (no decryption).
         run: |
           for d in apps/dev apps/staging apps/production \
+                   apps/staging/eso apps/production/eso \
                    infrastructure/controllers infrastructure/policies \
-                   infrastructure/monitoring; do
+                   infrastructure/monitoring infrastructure/eso; do
             echo "kustomize build $d"
             kubectl kustomize "$d" > /dev/null
           done
