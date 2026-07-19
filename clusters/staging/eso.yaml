@@ -1,0 +1,37 @@
+# ESO add-on for the staging EKS cluster — the SOPS-to-Secrets-Manager
+# migration target. Dormant until this cluster is bootstrapped; not
+# referenced by the local dev cluster.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-eso
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-controllers
+  interval: 10m
+  path: ./infrastructure/eso
+  prune: true
+  wait: true
+  timeout: 10m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps-eso
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infra-eso
+    - name: apps
+  interval: 5m
+  path: ./apps/staging/eso
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
